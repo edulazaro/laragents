@@ -7,8 +7,8 @@ Bring your own tools, your own models and your own credit system. The package ow
 parts that are the same in every project and expensive to get right; it stays out of the
 parts that are yours.
 
-> **Status: skeleton.** The contracts below are settled. The loop, the session models and
-> the clients are being ported from a production app.
+> **Status: early.** Ported from a production app but not yet running from here. The
+> contracts are settled; expect the surface around them to move.
 
 ## What it does, and what it refuses to do
 
@@ -36,6 +36,19 @@ is a property or nothing.
 **Two kinds of "out of credit", two exceptions.** A provider 429 is temporary and should be
 retried; an exhausted plan is not and should not. One exception for both leaves the catcher
 unable to tell them apart and the user reading the wrong message half the time.
+
+## What is in it
+
+    AgentLoop               call, run tools, feed results back, repeat, with a cap
+    HistoryCompressor       summarises old turns once the replay outgrows its budget
+    Clients\OpenAiClient     chat completions, tool calling
+    Clients\AnthropicClient  the same interface, translating both dialects
+    Clients\ModelCapabilities which model accepts what, measured against the live APIs
+    Tools\ToolRegistry       registration and tag filtering
+    Tools\BaseTool           defaults for your own tools
+    Tools\ToolContext        whatever your tools need, carried opaquely
+    Models\ChatSession       owner (tenant), actor (who talks), subject (optional frame)
+    Models\ChatMessage       one turn, including the tool plumbing
 
 ## Wiring your accounting
 

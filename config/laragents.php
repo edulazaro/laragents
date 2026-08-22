@@ -32,6 +32,28 @@ return [
 
         // Messages never compressed, however long the conversation gets.
         'recent_messages_min' => 4,
+
+        // Output cap per call, or null for none. Careful: on a reasoning model this
+        // budget also covers the thinking you never see, so a number sized for the
+        // visible answer can be spent entirely on it. ModelCapabilities drops the cap
+        // for those models rather than let that happen.
+        'max_response_tokens' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Providers
+    |--------------------------------------------------------------------------
+    | Keys only. Models are NOT configured here: every call names the model it uses,
+    | at the call site, as a required argument.
+    */
+
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+    ],
+
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
     ],
 
     /*

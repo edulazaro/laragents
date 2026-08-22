@@ -1,0 +1,67 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('laragents_chat_sessions', function (Blueprint $table) {
+            $table->id();
+            $table->ulid('ulid')->unique();
+
+            // The tenant: who pays and whose data this may see. Morphs so the package
+            // never has to know your model.
+            $table->nullableMorphs('owner');
+
+            // Who is talking.
+            $table->nullableMorphs('actor');
+
+            // What the conversation is about, when there is such a thing. Often null:
+            // plenty of products have no frame beyond the tenant.
+            $table->nullableMorphs('subject');
+
+            $table->string('title')->nullable();
+            $table->unsignedInteger('total_tokens')->default(0);
+
+            // History compression: the summary that replaces everything up to
+            // compressed_until_id when the replayed history outgrows its budget.
+            $table->longText('compressed_summary')->nullable();
+            $table->unsignedBigInteger('compressed_until_id')->nullable();
+
+            // Yours. The package writes nothing here.
+            $table->json('metadata')->nullable();
+
+            $table->timestamps();
+        });
+
+        Schema::create('laragents_chat_messages', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('session_id')
+                ->constrained('laragents_chat_sessions')
+                ->cascadeOnDelete();
+
+            // user | assistant | system | tool
+            $table->string('role', 20);
+            $table->longText('content')->nullable();
+
+            // tool_calls on an assistant row, tool_name and tool_call_id on a tool row,
+            // model and finish_reason on a final answer.
+            $table->json('metadata')->nullable();
+
+            $table->timestamps();
+
+            // The loop replays a session in order on every turn, so this is the index
+            // that matters.
+            $table->index(['session_id', 'id']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('laragents_chat_messages');
+        Schema::dropIfExists('laragents_chat_sessions');
+    }
+};
