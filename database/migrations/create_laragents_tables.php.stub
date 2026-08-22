@@ -26,6 +26,11 @@ return new class extends Migration
             $table->string('title')->nullable();
             $table->unsignedInteger('total_tokens')->default(0);
 
+            // Per-conversation override for laragents.privacy.enabled. Defaults to ON,
+            // so a product that anonymises does it unless this user asked otherwise in
+            // this particular conversation. Ignored entirely when privacy is off.
+            $table->boolean('anonymize_pii')->default(true);
+
             // History compression: the summary that replaces everything up to
             // compressed_until_id when the replayed history outgrows its budget.
             $table->longText('compressed_summary')->nullable();

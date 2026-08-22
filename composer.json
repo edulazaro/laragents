@@ -3,7 +3,16 @@
     "description": "Agentic LLM chat for Laravel: sessions, message history with automatic compression, a provider-agnostic tool-calling loop, and pluggable usage accounting. Bring your own tools, your own models and your own credit system.",
     "license": "MIT",
     "type": "library",
-    "keywords": ["laravel", "llm", "ai", "agent", "chat", "tool-calling", "openai", "anthropic"],
+    "keywords": [
+        "laravel",
+        "llm",
+        "ai",
+        "agent",
+        "chat",
+        "tool-calling",
+        "openai",
+        "anthropic"
+    ],
     "require": {
         "php": ">=8.2",
         "laravel/framework": ">=12.0"
@@ -33,8 +42,12 @@
     },
     "require-dev": {
         "phpunit/phpunit": "^11.0",
-        "orchestra/testbench": "^10.0"
+        "orchestra/testbench": "^10.0",
+        "edulazaro/laranon": "^1.2"
     },
     "minimum-stability": "dev",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "suggest": {
+        "edulazaro/laranon": "Required if you turn on laragents.privacy.enabled: swaps personal data for markers before the prompt reaches the provider and restores it on the way back."
+    }
 }

@@ -58,6 +58,43 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Privacy
+    |--------------------------------------------------------------------------
+    | Replaces personal data with markers before the prompt leaves for the provider,
+    | and puts the real values back when it returns. Requires edulazaro/laranon.
+    |
+    | Off by default because turning it on changes what the model sees, and therefore
+    | what it answers. That is your call, not the package's.
+    |
+    | With it on and laranon missing, the loop THROWS rather than logging a warning.
+    | An app that believes it anonymises and does not is worse than one that never
+    | claimed to: nobody reads the warning, and the false confidence is the damage.
+    */
+
+    'privacy' => [
+        'enabled' => false,
+
+        /*
+        | Entity types to leave in the clear. 'person' is the interesting one: in
+        | gendered languages the first name carries the grammatical gender, and
+        | stripping it leaves the model writing "el paciente ha sido informada".
+        | Surnames, ID numbers, IBANs, phones and emails still get tokenised.
+        |
+        | Set to [] to tokenise everything.
+        */
+        'except' => ['person'],
+
+        /*
+        | Where the markers have to be swapped inside each message. Tool call
+        | arguments are in there for a reason: they are restored BEFORE the tool
+        | runs, so your tools query the database with real values. Miss this and
+        | they search for "«AP_1»" and quietly find nothing.
+        */
+        'keys' => ['content', 'tool_calls.*.function.arguments'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Usage accounting
     |--------------------------------------------------------------------------
     | Your implementation of EduLazaro\Laragents\Contracts\UsageRecorder. Leave it null

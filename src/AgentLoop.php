@@ -5,6 +5,7 @@ namespace EduLazaro\Laragents;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Models\ChatMessage;
 use EduLazaro\Laragents\Models\ChatSession;
+use EduLazaro\Laragents\Privacy\Redactor;
 use EduLazaro\Laragents\Tools\ToolContext;
 use EduLazaro\Laragents\Tools\ToolRegistry;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +25,7 @@ class AgentLoop
 {
     protected int $inputTokens = 0;
     protected int $outputTokens = 0;
+    protected ?Redactor $redactor = null;
 
     public function __construct(
         protected ChatClient $client,
@@ -48,7 +50,13 @@ class AgentLoop
         $iteration = 0;
         $last = null;
 
+        $this->redactor = $this->redactorFor($session);
+
         while ($iteration < $maxIterations) {
+            // A fresh mapping per turn. It is deterministic, so the same person keeps the
+            // same marker within the turn, and nothing needs to survive between turns.
+            $this->redactor?->beginTurn();
+
             $response = $this->client->chat(
                 messages: $this->outbound($messages),
                 model: $model,
@@ -191,22 +199,48 @@ class AgentLoop
         ]);
     }
 
-    /** Override to transform messages on their way to the provider (redaction, etc). */
+    /**
+     * Whether this conversation gets redacted.
+     *
+     * Two switches, and both have to say yes: the app-wide option, and the per-session
+     * flag on top of it. The global one is off by default because turning it on changes
+     * what the model sees; the per-session one is on by default, so a product that
+     * redacts does it unless this user asked otherwise in this conversation.
+     */
+    protected function redactorFor(ChatSession $session): ?Redactor
+    {
+        if (! config('laragents.privacy.enabled', false)) {
+            return null;
+        }
+
+        if ($session->anonymize_pii === false) {
+            return null;
+        }
+
+        // Throws when laranon is missing. See Redactor: a warning nobody reads is worse
+        // than a failure, because the app goes on believing it anonymises.
+        return new Redactor(
+            except: (array) config('laragents.privacy.except', ['person']),
+            keys: (array) config('laragents.privacy.keys', ['content', 'tool_calls.*.function.arguments']),
+        );
+    }
+
+    /** Messages on their way to the provider. Override to add your own transform. */
     protected function outbound(array $messages): array
     {
-        return $messages;
+        return $this->redactor ? $this->redactor->outbound($messages) : $messages;
     }
 
-    /** Override to transform the model's text on the way back. */
+    /** The model's text on the way back, before it is shown or stored. */
     protected function inbound(string $content): string
     {
-        return $content;
+        return $this->redactor ? $this->redactor->inbound($content) : $content;
     }
 
-    /** Override when the outbound transform also has to be undone inside tool arguments. */
+    /** Tool arguments, restored BEFORE the tools run so they query with real values. */
     protected function inboundToolCalls(array $toolCalls): array
     {
-        return $toolCalls;
+        return $this->redactor ? $this->redactor->inboundToolCalls($toolCalls) : $toolCalls;
     }
 
     /** Override to add caller data to every tool's arguments. */

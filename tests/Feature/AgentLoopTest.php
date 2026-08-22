@@ -191,4 +191,29 @@ class AgentLoopTest extends TestCase
         $this->assertCount(3, $tool->calls);
         Http::assertSentCount(3);
     }
+
+    public function test_privacy_on_without_laranon_throws_instead_of_passing_data_through(): void
+    {
+        // The loudest possible failure, on purpose. A warning would be read by nobody and
+        // the app would carry on believing it anonymises while the data leaves in clear.
+        // This test case does NOT register laranon, which is the point.
+        config(['laragents.privacy.enabled' => true]);
+
+        Http::fake(['api.openai.com/*' => Http::response([
+            'choices' => [['message' => ['content' => 'ok'], 'finish_reason' => 'stop']],
+            'usage' => [],
+        ], 200)]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('edulazaro/laranon is not installed');
+
+        $this->loop(new EchoTool())->run(
+            messages: [['role' => 'user', 'content' => 'x']],
+            model: 'gpt-4o-mini',
+            session: $this->newSession(),
+            context: ToolContext::make(),
+        );
+
+        Http::assertNothingSent();
+    }
 }

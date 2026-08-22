@@ -49,6 +49,30 @@ unable to tell them apart and the user reading the wrong message half the time.
     Tools\ToolContext        whatever your tools need, carried opaquely
     Models\ChatSession       owner (tenant), actor (who talks), subject (optional frame)
     Models\ChatMessage       one turn, including the tool plumbing
+    Privacy\Redactor         optional PII redaction, via edulazaro/laranon
+
+## Privacy
+
+Off by default. Turn on `laragents.privacy.enabled` and personal data is replaced with
+markers before the prompt leaves, and put back when it returns.
+
+The ordering is the part worth knowing, because getting it wrong fails quietly. A COPY of
+the prompt is tokenised, so the stored conversation stays in the clear and nothing
+anonymised is ever persisted. The reply is restored before it is shown or saved. And tool
+call arguments are restored BEFORE the tools run, so your tools query the database with
+real values rather than searching for `«AP_1»` and finding nothing.
+
+`person` is left in the clear by default. In gendered languages the first name carries the
+grammatical gender, and stripping it leaves the model writing "el paciente ha sido
+informada". Surnames, ID numbers, IBANs, phones and emails are still tokenised. Set
+`privacy.except` to `[]` to redact everything.
+
+Each session carries an `anonymize_pii` flag, on by default, so a user can opt one
+conversation out without changing the app-wide setting.
+
+**With the option on and laranon missing, the loop throws.** Not a warning: an app that
+believes it anonymises and does not is worse than one that never claimed to, and a log
+line nobody reads is exactly how that goes unnoticed.
 
 ## Wiring your accounting
 

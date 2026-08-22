@@ -36,6 +36,7 @@ class ChatSession extends Model
         'subject_id',
         'title',
         'total_tokens',
+        'anonymize_pii',
         'compressed_summary',
         'compressed_until_id',
         'metadata',
@@ -43,6 +44,7 @@ class ChatSession extends Model
 
     protected $casts = [
         'total_tokens' => 'integer',
+        'anonymize_pii' => 'boolean',
         'metadata' => 'array',
     ];
 
