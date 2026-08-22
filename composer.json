@@ -1,0 +1,40 @@
+{
+    "name": "edulazaro/laragents",
+    "description": "Agentic LLM chat for Laravel: sessions, message history with automatic compression, a provider-agnostic tool-calling loop, and pluggable usage accounting. Bring your own tools, your own models and your own credit system.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": ["laravel", "llm", "ai", "agent", "chat", "tool-calling", "openai", "anthropic"],
+    "require": {
+        "php": ">=8.2",
+        "laravel/framework": ">=12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "EduLazaro\\Laragents\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "EduLazaro\\Laragents\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Edu Lazaro",
+            "email": "edu@edulazaro.com"
+        }
+    ],
+    "extra": {
+        "laravel": {
+            "providers": [
+                "EduLazaro\\Laragents\\LaragentsServiceProvider"
+            ]
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0",
+        "orchestra/testbench": "^10.0"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
