@@ -23,8 +23,10 @@ abstract class TestCase extends Orchestra
 
     protected function defineDatabaseMigrations(): void
     {
-        $migration = require __DIR__ . '/../database/migrations/create_laragents_tables.php.stub';
-        $migration->up();
+        foreach (['create_laragents_tables', 'create_laragents_agent_tables'] as $file) {
+            $migration = require __DIR__ . "/../database/migrations/{$file}.php.stub";
+            $migration->up();
+        }
 
         // A stand-in for the host app's tenant model, so sessions have something to own
         // them without the package shipping one.

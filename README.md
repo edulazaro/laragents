@@ -50,6 +50,9 @@ unable to tell them apart and the user reading the wrong message half the time.
     Models\ChatSession       owner (tenant), actor (who talks), subject (optional frame)
     Models\ChatMessage       one turn, including the tool plumbing
     Models\Memory            what to remember between conversations
+    Models\Agent             a standing instruction to run the loop
+    Models\AgentTask         one run: why it fired, what came back
+    Models\AgentLog          what it did, step by step
     Privacy\Redactor         optional PII redaction, via edulazaro/laranon
 
 ## Memory
@@ -106,6 +109,23 @@ what you want while you are still wiring it up.
 too, where you can stop before assembling an expensive prompt, apply the right threshold
 for that operation, and tell the user something useful. What the net catches is the caller
 who forgets — which is exactly how an unmetered path ships unnoticed.
+
+## Agents
+
+An agent is a chat session with nobody at the other end. Same loop, same clients, same
+tools, same memory, same accounting — which is why they live here rather than in a package
+of their own. The app this came from had a separate executor for them, a near-copy of the
+chat one, and the copy had drifted: it never got the PII redaction the chat had.
+
+Their tables publish under their own tag, so an app that only wants an interactive chat
+does not end up with three empty tables:
+
+    php artisan vendor:publish --tag=laragents-migrations         chat and memories
+    php artisan vendor:publish --tag=laragents-agent-migrations   agents, tasks, logs
+
+Scheduling is yours. The package holds the agent, the run and the log; when to fire them
+depends on your queue and your clock, and a package that assumes either is a package that
+breaks on someone else's setup.
 
 ## Configuration
 

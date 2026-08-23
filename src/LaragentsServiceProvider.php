@@ -47,5 +47,13 @@ class LaragentsServiceProvider extends ServiceProvider
                 'migrations/' . date('Y_m_d_His') . '_create_laragents_tables.php',
             ),
         ], 'laragents-migrations');
+
+        // Separate tag: an app that only wants an interactive chat should not end up
+        // with three empty tables for a feature it does not use.
+        $this->publishes([
+            __DIR__ . '/../database/migrations/create_laragents_agent_tables.php.stub' => database_path(
+                'migrations/' . date('Y_m_d_His', time() + 1) . '_create_laragents_agent_tables.php',
+            ),
+        ], 'laragents-agent-migrations');
     }
 }
