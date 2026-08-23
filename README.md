@@ -50,6 +50,7 @@ unable to tell them apart and the user reading the wrong message half the time.
     Models\ChatSession       owner (tenant), actor (who talks), subject (optional frame)
     Models\ChatMessage       one turn, including the tool plumbing
     Models\Memory            what to remember between conversations
+    AgentRunner             runs one task: prompt, loop, record what happened
     Models\Agent             a standing instruction to run the loop
     Models\AgentTask         one run: why it fired, what came back
     Models\AgentLog          what it did, step by step
