@@ -100,6 +100,22 @@ conversation out without changing the app-wide setting.
 believes it anonymises and does not is worse than one that never claimed to, and a log
 line nobody reads is exactly how that goes unnoticed.
 
+## Metering what it spends
+
+The clients report tokens and nothing else. What a token costs, and whether an account may
+spend more, is not this package's business.
+
+**The short way**, if you use edulazaro/laracredits:
+
+    'usage_recorder' => 'laracredits',
+
+That is the whole wiring. Tokens become credits at your rates, and a call is refused before
+it leaves once the plan runs out.
+
+**Your own tables**: implement `Contracts\UsageRecorder` and name the class instead. Leave
+it null and nothing is recorded and nothing is blocked, which is what you want while you
+are still wiring it up.
+
 ## Wiring your accounting
 
 Implement `Contracts\UsageRecorder` over whatever tables you already have and point the

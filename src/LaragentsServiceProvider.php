@@ -7,6 +7,7 @@ use EduLazaro\Laragents\Clients\OpenAiClient;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
 use EduLazaro\Laragents\Tools\ToolRegistry;
+use EduLazaro\Laragents\Usage\LaracreditsRecorder;
 use EduLazaro\Laragents\Usage\NullUsageRecorder;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,10 +20,30 @@ class LaragentsServiceProvider extends ServiceProvider
         // No binding from the host app means nothing is recorded and nothing is blocked.
         // A package should not start refusing calls because you have not wired your
         // billing yet.
-        $this->app->singleton(UsageRecorder::class, function ($app) {
-            $class = $app['config']['laragents.usage_recorder'] ?? null;
+        // SCOPED, not singleton: an implementation may memoise the balance, and a queue
+        // worker keeps singletons alive between jobs.
+        $this->app->scoped(UsageRecorder::class, function ($app) {
+            $recorder = $app['config']['laragents.usage_recorder'] ?? null;
 
-            return $class ? $app->make($class) : new NullUsageRecorder();
+            if ($recorder === null) {
+                return new NullUsageRecorder();
+            }
+
+            // Shorthand for the adapter that ships with this package.
+            if ($recorder === 'laracredits') {
+                if (! class_exists(\EduLazaro\Laracredits\CreditMeter::class)) {
+                    throw new \RuntimeException(
+                        "laragents.usage_recorder is set to 'laracredits' but "
+                        . 'edulazaro/laracredits is not installed. Either '
+                        . '`composer require edulazaro/laracredits` or point the option '
+                        . 'at your own UsageRecorder.'
+                    );
+                }
+
+                return $app->make(LaracreditsRecorder::class);
+            }
+
+            return $app->make($recorder);
         });
 
         $this->app->singleton(ToolRegistry::class);
