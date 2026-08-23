@@ -157,6 +157,14 @@ reads as a suggestion is not a rule.
 
 ## Making agents run
 
+Seven tables, one migration. A session and a memory both carry `agent_id` as a real
+foreign key, **null on delete**: retiring an agent must not take people's conversations
+with it, and what it learned outlives it. That is the reason the agent tables are not
+published separately. A split saved three empty tables for apps that only wanted a chat,
+and cost the constraint, since a session cannot point at an agent whose table may not
+exist.
+
+
 An agent that nothing fires is furniture. This is the part that is easy to leave out and
 impossible to notice missing: the form offers "when a document is uploaded", somebody
 picks it, and with nothing listening the agent never runs. No error, no log, no complaint
@@ -269,8 +277,7 @@ chat one, and the copy had drifted: it never got the PII redaction the chat had.
 Their tables publish under their own tag, so an app that only wants an interactive chat
 does not end up with three empty tables:
 
-    php artisan vendor:publish --tag=laragents-migrations         chat and memories
-    php artisan vendor:publish --tag=laragents-agent-migrations   agents, tasks, logs
+    php artisan vendor:publish --tag=laragents-migrations   all seven tables
 
 Scheduling is yours. The package holds the agent, the run and the log; when to fire them
 depends on your queue and your clock, and a package that assumes either is a package that

@@ -87,19 +87,15 @@ class LaragentsServiceProvider extends ServiceProvider
             __DIR__ . '/../config/laragents.php' => config_path('laragents.php'),
         ], 'laragents-config');
 
+        // One tag, all seven tables. They were split for a while so an app wanting only
+        // a chat would not get empty agent tables; that saved nothing worth having and
+        // cost the foreign keys, since a session cannot point at an agent whose table
+        // may not exist.
         $this->publishes([
             __DIR__ . '/../database/migrations/create_laragents_tables.php.stub' => database_path(
                 'migrations/' . date('Y_m_d_His') . '_create_laragents_tables.php',
             ),
         ], 'laragents-migrations');
-
-        // Separate tag: an app that only wants an interactive chat should not end up
-        // with three empty tables for a feature it does not use.
-        $this->publishes([
-            __DIR__ . '/../database/migrations/create_laragents_agent_tables.php.stub' => database_path(
-                'migrations/' . date('Y_m_d_His', time() + 1) . '_create_laragents_agent_tables.php',
-            ),
-        ], 'laragents-agent-migrations');
     }
 
     /**

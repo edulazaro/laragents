@@ -4,10 +4,119 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/*
+| One migration, all seven tables.
+|
+| They were split in two for a while, so an app wanting only an interactive chat would not
+| end up with empty agent tables. That saved nothing worth having and cost the foreign keys:
+| a session cannot point at an agent whose table may not exist, so `agent_id` had to be an
+| unconstrained integer, and deleting an agent left it dangling. Three empty tables are
+| cheaper than integrity you cannot enforce.
+*/
+
 return new class extends Migration
 {
     public function up(): void
     {
+        Schema::create('laragents_agents', function (Blueprint $table) {
+            $table->id();
+            $table->ulid('ulid')->unique();
+
+            $table->nullableMorphs('owner');
+            $table->nullableMorphs('created_by');
+
+            $table->string('name');
+
+            // A face for the thing. Agents show up in lists beside people, and one
+            // without an avatar reads as broken rather than as a robot.
+            $table->string('avatar')->nullable();
+            $table->string('specialty')->nullable();
+            $table->longText('system_prompt')->nullable();
+
+            // active | paused, or whatever else your app needs. A free string, because a
+            // package that enums this ships a migration every time you add a state.
+            $table->string('status')->default('active');
+
+            // What sets it off. Both optional: an agent may run only on demand.
+            $table->string('schedule_cron')->nullable();
+            $table->json('event_triggers')->nullable();
+
+            // Tool names this agent may reach for. Null = whatever the caller passes it.
+            $table->json('allowed_tools')->nullable();
+
+            // Anything else the host app hangs off an agent without the package growing
+            // a column for it: model tier, iteration cap, which records it watches.
+            $table->json('config')->nullable();
+
+            // Counters for the UI. Cheap to keep, expensive to compute on every render.
+            $table->unsignedInteger('tasks_completed')->default(0);
+            $table->unsignedInteger('tasks_failed')->default(0);
+            $table->unsignedBigInteger('total_tokens_used')->default(0);
+            $table->timestamp('last_run_at')->nullable();
+
+            $table->timestamps();
+
+            // Soft deletes: tasks and logs point here, and hard deleting an agent would
+            // orphan the record of everything it ever did.
+            $table->softDeletes();
+        });
+
+        Schema::create('laragents_agent_tasks', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('agent_id')
+                ->constrained('laragents_agents')
+                ->cascadeOnDelete();
+
+            // What the run is about, when there is such a thing. Often null.
+            $table->nullableMorphs('subject');
+
+            // schedule | event | manual, and which event it was.
+            $table->string('trigger_type')->nullable();
+            $table->string('trigger_event')->nullable();
+
+            // pending | running | completed | failed
+            $table->string('status')->default('pending');
+
+            $table->json('input')->nullable();
+            $table->json('output')->nullable();
+
+            // A READ MIRROR for showing a run's cost beside it. Not the accounting: that
+            // lives in whatever implements UsageRecorder.
+            $table->unsignedInteger('input_tokens')->default(0);
+            $table->unsignedInteger('output_tokens')->default(0);
+            $table->unsignedInteger('credits_consumed')->default(0);
+
+            $table->timestamp('started_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->text('error_message')->nullable();
+
+            $table->timestamps();
+
+            // "What has this agent been doing lately", which is the only query anyone
+            // runs against this table.
+            $table->index(['agent_id', 'status', 'created_at']);
+        });
+
+        Schema::create('laragents_agent_logs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('agent_task_id')
+                ->nullable()
+                ->constrained('laragents_agent_tasks')
+                ->cascadeOnDelete();
+            $table->foreignId('agent_id')
+                ->nullable()
+                ->constrained('laragents_agents')
+                ->cascadeOnDelete();
+
+            $table->string('level')->default('info');
+            $table->text('message');
+            $table->json('metadata')->nullable();
+
+            // Written once, never touched again, so no updated_at.
+            $table->timestamp('created_at')->nullable();
+
+            $table->index(['agent_task_id', 'id']);
+        });
         Schema::create('laragents_chat_sessions', function (Blueprint $table) {
             $table->id();
             $table->ulid('ulid')->unique();
@@ -26,10 +135,12 @@ return new class extends Migration
             // Which agent is holding this conversation, when one is. A chat with an agent
             // is still a chat: same session, same messages, same memories.
             //
-            // No foreign key on purpose. The agent tables publish under a separate tag,
-            // so an app that only wants an interactive chat never creates them, and a
-            // constraint here would make that impossible.
-            $table->unsignedBigInteger('agent_id')->nullable()->index();
+            // Null on delete, not cascade: retiring an agent must not take people's
+            // conversations with it. The history stays, it just stops naming who ran it.
+            $table->foreignId('agent_id')
+                ->nullable()
+                ->constrained('laragents_agents')
+                ->nullOnDelete();
 
             $table->string('title')->nullable();
             $table->unsignedInteger('total_tokens')->default(0);
@@ -107,8 +218,13 @@ return new class extends Migration
 
             // Which agent produced it, when one did. Distinct from created_by, which is
             // the person: an agent writing a memory about a client is neither the person
-            // nor the subject of it. No foreign key, for the reason above.
-            $table->unsignedBigInteger('agent_id')->nullable()->index();
+            // nor the subject of it.
+            //
+            // Null on delete. What was learned outlives the thing that learned it.
+            $table->foreignId('agent_id')
+                ->nullable()
+                ->constrained('laragents_agents')
+                ->nullOnDelete();
 
             // Free string, not an enum: apps invent their own origins and a package
             // should not have to ship a migration every time they do.
@@ -181,5 +297,8 @@ return new class extends Migration
         Schema::dropIfExists('laragents_memories');
         Schema::dropIfExists('laragents_chat_messages');
         Schema::dropIfExists('laragents_chat_sessions');
+        Schema::dropIfExists('laragents_agent_logs');
+        Schema::dropIfExists('laragents_agent_tasks');
+        Schema::dropIfExists('laragents_agents');
     }
 };
