@@ -28,7 +28,9 @@ class LarameterIntegrationTest extends TestCase
         parent::defineEnvironment($app);
 
         $app['config']->set('laragents.usage_recorder', 'larameter');
-        $app['config']->set('larameter.plans.free.credits_monthly', 1000);
+        $app['config']->set('larameter.windows', ['week' => ['days' => 7, 'anchor' => 'fixed']]);
+        $app['config']->set('larameter.plans', ['free' => ['credits' => ['week' => 1000]]]);
+        $app['config']->set('larameter.default_plan', 'free');
         $app['config']->set('larameter.rates', [
             'gpt-4o' => ['in' => 2.50, 'out' => 10.00, 'per' => 1_000_000],
         ]);
@@ -88,7 +90,7 @@ class LarameterIntegrationTest extends TestCase
         $org = Owner::create();
         $this->fakeAnswer(in: 1_000_000, out: 1_000_000);
 
-        // First call: allowed, and it blows straight through the 1000 credit budget.
+        // First call: allowed, and it blows straight through the 1000 credit allowance.
         $this->app->make(OpenAiClient::class)->chat(
             messages: [['role' => 'user', 'content' => 'x']],
             model: 'gpt-4o',
