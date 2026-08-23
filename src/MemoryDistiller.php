@@ -297,8 +297,10 @@ class MemoryDistiller
     {
         $created = 0;
 
-        foreach ($proposed['everyone'] as $item) {
-            $created += $this->insert($item, $session, holder: null) ? 1 : 0;
+        if ($this->maySharePublicly($session->actor)) {
+            foreach ($proposed['everyone'] as $item) {
+                $created += $this->insert($item, $session, holder: null) ? 1 : 0;
+            }
         }
 
         // No actor means an autonomous run with nobody behind it. There is no one for a
@@ -311,6 +313,22 @@ class MemoryDistiller
         }
 
         return $created;
+    }
+
+    /**
+     * Whether this person's conversation may feed the shared pool.
+     *
+     * Silence is consent here, deliberately: an actor with no say on the matter, or no
+     * actor at all, shares. A package should not turn off a feature nobody asked it to
+     * turn off, and the ones who care will have said so.
+     */
+    protected function maySharePublicly(?Model $actor): bool
+    {
+        if (! $actor || ! method_exists($actor, 'sharesMemories')) {
+            return true;
+        }
+
+        return $actor->sharesMemories();
     }
 
     protected function insert(mixed $item, ChatSession $session, ?Model $holder): bool

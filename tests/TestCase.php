@@ -37,6 +37,8 @@ abstract class TestCase extends Orchestra
         // them without the package shipping one.
         \Illuminate\Support\Facades\Schema::create('owners', function ($table) {
             $table->id();
+            // What the published opt-out migration adds. Nullable: null is "never chose".
+            $table->boolean('share_memories')->nullable();
             $table->timestamps();
         });
 

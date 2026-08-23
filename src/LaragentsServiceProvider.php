@@ -117,6 +117,15 @@ class LaragentsServiceProvider extends ServiceProvider
                 'migrations/' . date('Y_m_d_His') . '_create_laragents_tables.php',
             ),
         ], 'laragents-migrations');
+
+        // Separate tag, because this is the only migration that touches a table the
+        // package does not own. Publish it if you want people to be able to opt out of
+        // the shared memory pool; skip it and everyone shares.
+        $this->publishes([
+            __DIR__ . '/../database/migrations/add_share_memories.php.stub' => database_path(
+                'migrations/' . date('Y_m_d_His', time() + 1) . '_add_share_memories.php',
+            ),
+        ], 'laragents-optout-migration');
     }
 
     /**

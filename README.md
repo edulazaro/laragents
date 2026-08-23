@@ -205,6 +205,31 @@ Both find their conversation through the tool context, which `AgentLoop` fills i
 every run, so they work in an agent run and in an interactive chat without the caller
 arranging anything.
 
+### Letting people opt out
+
+Put `SharesMemories` on whoever talks to the model and they get a say in whether what they
+say reaches everyone else's memory.
+
+    php artisan vendor:publish --tag=laragents-optout-migration
+
+    class User extends Authenticatable
+    {
+        use EduLazaro\Laragents\Concerns\SharesMemories;
+    }
+
+**Three states, and the third is the point.** Null means this person never chose, so
+`laragents.memory.share_memories` applies. A stored true or false is a decision, and it
+beats the default for ever. Without that third state you could never change your mind
+about the default without silently overwriting the people who had picked the old one on
+purpose.
+
+It gates only what is written from here on, and only the shared half: their own memories
+keep being written either way, and nothing already stored is hidden or removed. Turning it
+off is not a retraction.
+
+An actor with no say on the matter, or no actor at all, shares. A package should not switch
+off a feature nobody asked it to switch off.
+
 ## Rules
 
 The hard half. A memory is distilled and weighed; a **rule** is written by a person, never

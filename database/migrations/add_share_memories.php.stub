@@ -1,0 +1,45 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+/*
+| Adds the opt-out column to whoever talks to the model.
+|
+| Published separately, because this is the one migration that touches a table the package
+| does not own. It reads the table name from config rather than guessing, and it does
+| nothing when the column is already there, so an app that got here first keeps what it has.
+|
+| NULLABLE, and null is not the same as false. Null means this person never chose and the
+| configured default applies; a stored value is a decision, and it wins for ever. Without
+| the third state you could never change your mind about the default without silently
+| overwriting people who had chosen the old one on purpose.
+*/
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        $table = (string) config('laragents.memory.actor_table', 'users');
+
+        if (! Schema::hasTable($table) || Schema::hasColumn($table, 'share_memories')) {
+            return;
+        }
+
+        Schema::table($table, function (Blueprint $blueprint) {
+            $blueprint->boolean('share_memories')->nullable();
+        });
+    }
+
+    public function down(): void
+    {
+        $table = (string) config('laragents.memory.actor_table', 'users');
+
+        if (Schema::hasTable($table) && Schema::hasColumn($table, 'share_memories')) {
+            Schema::table($table, function (Blueprint $blueprint) {
+                $blueprint->dropColumn('share_memories');
+            });
+        }
+    }
+};

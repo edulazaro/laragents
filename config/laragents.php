@@ -159,6 +159,28 @@ return [
         'tools' => true,
 
         /*
+        | Whether what somebody says may end up in everyone else's memory.
+        |
+        | This is only the DEFAULT, for people who have never chosen. Put the
+        | SharesMemories trait on whoever talks to the model and they get a column with
+        | three states: null means they never decided and this value applies, and a stored
+        | true or false is their decision and beats this for ever.
+        |
+        | The third state is what lets you change your mind about the default later
+        | without silently overwriting people who had chosen the old one on purpose.
+        |
+        | Turning it off stops PRIVATE material reaching the shared pool from then on.
+        | Their own memories keep being written, and nothing already stored is hidden or
+        | removed: this is not a retraction.
+        */
+        'share_memories' => true,
+
+        // Which table the published opt-out migration adds `share_memories` to. It is the
+        // one migration in this package that touches a table the package does not own, so
+        // it asks rather than guesses, and it skips a column that is already there.
+        'actor_table' => 'users',
+
+        /*
         | When memories get written.
         |
         | `distil_on_compress` is the main path: crossing the history budget means a lot
