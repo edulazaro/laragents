@@ -102,6 +102,60 @@ return [
     | while you are still wiring it up.
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Memory distillation
+    |--------------------------------------------------------------------------
+    | What turns a conversation into durable memories. Run it from a queued job AFTER the
+    | answer has gone out: it costs a model call, and charging the user's reply for the
+    | privilege of remembering it is how a chat gets slow.
+    |
+    | `min_messages` is the floor below which it will not bother calling the model. The
+    | cron that wraps up abandoned conversations should pass 1 instead: a conversation
+    | that is over deserves distilling even if it was short, because there is no later.
+    |
+    | `prompt` replaces the packaged one wholesale. The default is English and generic and
+    | knows nothing about your domain. Whatever you write must still return the same
+    | shape, and must use "owner" and "subject" as the scope values, because those are
+    | what the distiller knows how to resolve:
+    |
+    |   {"shared":   [{"scope": "owner|subject", "content": "...", "category": "..."}],
+    |    "personal": [{"scope": "owner|subject", "content": "...", "category": "..."}]}
+    */
+
+    'memory' => [
+        'model' => 'gpt-4o-mini',
+        'min_messages' => 4,
+        'existing_context' => 30,
+        'lock_seconds' => 120,
+        'prompt' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rules
+    |--------------------------------------------------------------------------
+    | How a rule is announced to the model. Shared rules are rendered before personal
+    | ones and worded as mandatory, so a user preference can never quietly override a
+    | firm policy.
+    |
+    | :scope is replaced with the morph alias of what the rule hangs off, so keep your
+    | morph map readable: it ends up in the prompt.
+    |
+    | The defaults are blunt on purpose, because a rule the model reads as a suggestion
+    | is not a rule. They are also English and generic, and yours are probably neither.
+    |
+    | For per-scope wording, add a key of the form 'shared.case' or 'personal.organization'
+    | and it wins over the template for that scope.
+    */
+
+    'rules' => [
+        'headings' => [
+            // 'shared' => 'MANDATORY INSTRUCTIONS FOR THIS :scope (do NOT skip them under any circumstance):',
+            // 'personal' => 'PREFERENCES OF THE CURRENT USER IN THIS :scope (respect them unless they contradict the mandatory instructions):',
+        ],
+    ],
+
     'usage_recorder' => null,
 
 ];

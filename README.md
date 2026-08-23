@@ -50,6 +50,8 @@ unable to tell them apart and the user reading the wrong message half the time.
     Models\ChatSession       owner (tenant), actor (who talks), subject (optional frame)
     Models\ChatMessage       one turn, including the tool plumbing
     Models\Memory            what to remember between conversations
+    MemoryDistiller         turns a finished exchange into memories
+    Models\Rule              hard directives, rendered at the top of the prompt
     AgentRunner             runs one task: prompt, loop, record what happened
     Models\Agent             a standing instruction to run the loop
     Models\AgentTask         one run: why it fired, what came back
@@ -76,6 +78,55 @@ preferences in different organisations instead of dragging one set everywhere.
 `Memory::promptBlock($session)` renders the block for a system prompt, grouped so shared
 and personal stay visibly apart. Selection is by recency: semantic retrieval would need an
 embedding provider, and at the volumes one scope produces, the newest N is hard to beat.
+
+### Filling it
+
+`MemoryDistiller` reads what has been said since last time and writes the memories.
+Without it the table gets read into every prompt and nothing ever puts a row in it.
+
+    dispatch(function () use ($session) {
+        app(MemoryDistiller::class)->distil($session);
+    })->afterResponse();
+
+Run it **after** the answer has gone out. It costs a model call, and charging the user's
+reply for the privilege of remembering it is how a chat gets slow.
+
+It asks for two independent lists. **shared** is objective fact useful to anyone, written
+impersonally; **personal** is what matters to the one person, in their own voice. The
+prompt spends most of its length on the rule that keeps them apart: nothing that mentions
+the user, their doubts or their gaps may appear in shared, and anything doubtful goes in
+personal or nowhere.
+
+Two fields on the session keep it honest. `distilled_until_id` is where to resume;
+`last_distilled_at` is whether there is any point. Both are written even when nothing was
+kept, including after a failure, because retrying a window that just failed usually fails
+again and every attempt is paid for. A cron that wakes up abandoned conversations passes
+`minMessages: 1`, since a conversation that is over deserves distilling even if it was
+short.
+
+The packaged prompt is English and knows nothing about your domain. Replace it wholesale
+with `laragents.memory.prompt`; it just has to return the same shape and use `owner` and
+`subject` as the scope values.
+
+## Rules
+
+The hard half. A memory is distilled and weighed; a **rule** is written by a person, never
+distilled, and rendered at the top of the prompt in imperative language. "The firm never
+quotes fees over chat" is a rule. "This client tends to reply late" is a memory.
+
+Same two axes as a memory, and here the second one is also the precedence:
+
+    Rule::promptBlock($session)
+
+Shared rules render first and worded as mandatory, personal ones after and worded as
+preferences, never interleaved. Flatten them together and the model loses the only signal
+separating firm policy from one person's taste, and starts trading one off against the
+other. Within each block, `priority` ascending, ties in the order they were written.
+
+`enabled` turns a rule off without deleting it, so a firm can pause one for a week and put
+it back without retyping it. The wording of the headings is yours, in
+`laragents.rules.headings`; the defaults are blunt on purpose, because a rule the model
+reads as a suggestion is not a rule.
 
 ## Privacy
 

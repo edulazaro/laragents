@@ -39,12 +39,15 @@ class ChatSession extends Model
         'anonymize_pii',
         'compressed_summary',
         'compressed_until_id',
+        'distilled_until_id',
+        'last_distilled_at',
         'metadata',
     ];
 
     protected $casts = [
         'total_tokens' => 'integer',
         'anonymize_pii' => 'boolean',
+        'last_distilled_at' => 'datetime',
         'metadata' => 'array',
     ];
 

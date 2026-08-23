@@ -36,6 +36,16 @@ return new class extends Migration
             $table->longText('compressed_summary')->nullable();
             $table->unsignedBigInteger('compressed_until_id')->nullable();
 
+            // Memory distillation: how far the distiller has read, and when it last ran.
+            //
+            // Two fields and not one, because they answer different questions. The
+            // message id is where to resume; the timestamp is whether there is any point.
+            // Without the timestamp a session that distilled to nothing gets picked up by
+            // the cron for ever, paying for a model call each time to decide again that
+            // there was nothing worth keeping.
+            $table->unsignedBigInteger('distilled_until_id')->nullable();
+            $table->timestamp('last_distilled_at')->nullable();
+
             // Yours. The package writes nothing here.
             $table->json('metadata')->nullable();
 
@@ -96,10 +106,49 @@ return new class extends Migration
             // matters.
             $table->index(['memorable_type', 'memorable_id', 'created_at']);
         });
+
+        /*
+        | Hard directives. The sibling of the memories above: same two axes, opposite
+        | treatment. A memory is distilled and weighed; a rule is written by a person and
+        | rendered at the top of the prompt as non-negotiable.
+        */
+        Schema::create('laragents_rules', function (Blueprint $table) {
+            $table->id();
+
+            // What it is attached to: an organisation, a case, a project.
+            $table->morphs('memorable');
+
+            // Who it applies to. NULL = everyone in that scope, which is how an admin
+            // writes a rule for the whole firm. Set = one person's own preference.
+            //
+            // It is also the precedence: shared rules render before personal ones and are
+            // worded as mandatory, so a preference cannot quietly override a policy.
+            $table->nullableMorphs('context');
+
+            // Audit only. Never decides what is visible, never reaches the model.
+            $table->nullableMorphs('created_by');
+
+            $table->text('content');
+
+            // Ascending: 0 is rendered first. Ties break by id, so two rules written the
+            // same day keep the order they were written in.
+            $table->integer('priority')->default(0);
+
+            // Turned off rather than deleted, so a firm can stop a rule for a week and
+            // put it back without retyping it.
+            $table->boolean('enabled')->default(true);
+
+            $table->json('metadata')->nullable();
+
+            $table->timestamps();
+
+            $table->index(['memorable_type', 'memorable_id', 'enabled']);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('laragents_rules');
         Schema::dropIfExists('laragents_memories');
         Schema::dropIfExists('laragents_chat_messages');
         Schema::dropIfExists('laragents_chat_sessions');

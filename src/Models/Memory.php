@@ -30,6 +30,12 @@ use Illuminate\Support\Collection;
  */
 class Memory extends Model
 {
+    /** Written by {@see \EduLazaro\Laragents\MemoryDistiller} out of a conversation. */
+    public const SOURCE_DISTILLED = 'distilled';
+
+    /** Written deliberately, by a person or by the model calling a tool to save it. */
+    public const SOURCE_EXPLICIT = 'explicit';
+
     protected $table = 'laragents_memories';
 
     protected $fillable = [

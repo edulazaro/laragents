@@ -151,10 +151,16 @@ class AgentRunner
     /** The agent's own prompt plus whatever it should remember. */
     protected function systemPrompt(Agent $agent, ChatSession $session): string
     {
-        $prompt = (string) $agent->system_prompt;
-        $memories = \EduLazaro\Laragents\Models\Memory::promptBlock($session);
+        // Rules first, and above the agent's own prompt. They are the firm's policy and
+        // the user's standing preferences, and a directive buried under a wall of
+        // remembered context stops reading as a directive.
+        $parts = [
+            \EduLazaro\Laragents\Models\Rule::promptBlock($session),
+            (string) $agent->system_prompt,
+            \EduLazaro\Laragents\Models\Memory::promptBlock($session),
+        ];
 
-        return $memories !== '' ? $prompt . "\n\n" . $memories : $prompt;
+        return implode("\n\n", array_filter($parts, fn (string $part) => trim($part) !== ''));
     }
 
     /**
