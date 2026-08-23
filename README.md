@@ -52,6 +52,11 @@ unable to tell them apart and the user reading the wrong message half the time.
     Models\Memory            what to remember between conversations
     MemoryDistiller         turns a finished exchange into memories
     Models\Rule              hard directives, rendered at the top of the prompt
+    AgentTrigger            what makes an agent run: an event, or the clock
+    Jobs\RunAgentTask        one queued run
+    Clients\OpenAiEmbedder   optional, for semantic recall
+    Tools\SaveMemoryTool     lets the model remember on purpose
+    Tools\SearchMemoriesTool lets it look past what is already in the prompt
     AgentRunner             runs one task: prompt, loop, record what happened
     Models\Agent             a standing instruction to run the loop
     Models\AgentTask         one run: why it fired, what came back
@@ -127,6 +132,82 @@ other. Within each block, `priority` ascending, ties in the order they were writ
 it back without retyping it. The wording of the headings is yours, in
 `laragents.rules.headings`; the defaults are blunt on purpose, because a rule the model
 reads as a suggestion is not a rule.
+
+### Recalling it
+
+By default, recall is by recency: the newest N memories in scope go into every prompt.
+That is a good answer at the volumes one scope produces, and it costs nothing.
+
+Turn on `laragents.memory.embeddings` and `Memory::search()` ranks by cosine similarity
+instead, which is what `search_memories` uses when the model needs something older than
+what it is already carrying. It is **off by default because embedding costs money on every
+memory written**, and a package should not start spending it because you installed it.
+
+`Embedder` is a separate contract from `ChatClient` on purpose. Anthropic does not do
+embeddings, so a chat client forced to carry `embed()` would have one implementation that
+only ever throws.
+
+Everything degrades rather than breaks: no embedder, embeddings off, provider unreachable,
+a memory written before you turned it on. Each of those falls back to recency or sorts
+last, because losing a memory to a rate limit is the worse trade.
+
+Scoring happens in PHP over a bounded pool, so there is no extension and no vector store
+to run. **That pool is a real ceiling.** Past a few thousand memories in one scope the
+answer is a vector index, not a bigger pool.
+
+## Making agents run
+
+An agent that nothing fires is furniture. This is the part that is easy to leave out and
+impossible to notice missing: the form offers "when a document is uploaded", somebody
+picks it, and with nothing listening the agent never runs. No error, no log, no complaint
+until somebody asks why nothing was triaged.
+
+**By the clock.** Installing the package is enough: the service provider registers an
+every-minute tick that dispatches a task for every agent whose cron expression has come
+round, plus a five-minute sweep that fails tasks whose worker died mid-run. Set
+`laragents.agents.schedule` to false to register those yourself.
+
+Dueness is measured **from the last run, not against the current minute**. `isDue(now())`
+is true only during the exact minute the expression names, so a tick lost to a restart, an
+overlapping run or a busy queue takes that execution with it, silently and for ever.
+Asking whether the next run after the last one has already passed means a missed minute is
+picked up on the following tick.
+
+**By an event.** Map your event to a class that places it:
+
+    'events' => [
+        \App\Events\FileProcessed::class => \App\Laragents\FileUploaded::class,
+    ],
+
+    class FileUploaded
+    {
+        public function __invoke($event): ?array
+        {
+            return [
+                'event' => 'file.extracted',
+                'owner' => $event->file->organization,
+                'subject' => $event->file->case,
+                'context' => ['file_id' => $event->file->id],
+            ];
+        }
+    }
+
+Return null and nothing fires, which is the right answer for an upload belonging to no
+tenant. A class and not a closure because config gets cached and a cached closure is a
+fatal error; a class and not a convention because only your app knows how to get an
+organisation out of a file.
+
+Where you already have a hook, skip the mapping and call it:
+
+    app(AgentTrigger::class)->fire('reply.created', $org, $case, [...]);
+
+The same event on the same subject within `debounce_seconds` runs once. Observers fire on
+every save, and one logical change written in three statements is three events: without
+that, the agent answers three times and is billed for all three.
+
+Put agent runs on a queue of their own with a worker of their own. A run is a loop of
+model calls and can take minutes; sharing a queue with anything interactive means one run
+holds a worker while a person waits.
 
 ## Privacy
 

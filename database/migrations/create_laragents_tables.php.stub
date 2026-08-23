@@ -23,8 +23,21 @@ return new class extends Migration
             // plenty of products have no frame beyond the tenant.
             $table->nullableMorphs('subject');
 
+            // Which agent is holding this conversation, when one is. A chat with an agent
+            // is still a chat: same session, same messages, same memories.
+            //
+            // No foreign key on purpose. The agent tables publish under a separate tag,
+            // so an app that only wants an interactive chat never creates them, and a
+            // constraint here would make that impossible.
+            $table->unsignedBigInteger('agent_id')->nullable()->index();
+
             $table->string('title')->nullable();
             $table->unsignedInteger('total_tokens')->default(0);
+
+            // Kept out of the way at the top of a list. A convenience of the chat itself
+            // rather than of any one product.
+            $table->boolean('pinned')->default(false);
+            $table->timestamp('pinned_at')->nullable();
 
             // Per-conversation override for laragents.privacy.enabled. Defaults to ON,
             // so a product that anonymises does it unless this user asked otherwise in
@@ -92,12 +105,28 @@ return new class extends Migration
             // Audit only. Never decides what is visible, never reaches the model.
             $table->nullableMorphs('created_by');
 
+            // Which agent produced it, when one did. Distinct from created_by, which is
+            // the person: an agent writing a memory about a client is neither the person
+            // nor the subject of it. No foreign key, for the reason above.
+            $table->unsignedBigInteger('agent_id')->nullable()->index();
+
             // Free string, not an enum: apps invent their own origins and a package
             // should not have to ship a migration every time they do.
             $table->string('source')->nullable();
             $table->string('category')->nullable();
 
             $table->text('content');
+
+            // The vector of `content`, for semantic recall. Null when embeddings are off
+            // (the default: a package should not start spending your money) or when the
+            // provider failed at write time, in which case the row still exists and
+            // simply sorts last.
+            //
+            // JSON and not a vector type: scoring happens in PHP over a bounded pool of
+            // candidates, so this needs no extension and no vector database. That is a
+            // real ceiling, in the low thousands per scope, and past it the answer is a
+            // vector index rather than a bigger pool.
+            $table->json('embedding')->nullable();
             $table->json('metadata')->nullable();
 
             $table->timestamps();

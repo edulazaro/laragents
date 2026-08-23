@@ -2,10 +2,12 @@
 
 namespace EduLazaro\Laragents\Models;
 
+use EduLazaro\Laragents\Contracts\Embedder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Something worth remembering between conversations.
@@ -45,13 +47,16 @@ class Memory extends Model
         'context_id',
         'created_by_type',
         'created_by_id',
+        'agent_id',
         'source',
         'category',
         'content',
+        'embedding',
         'metadata',
     ];
 
     protected $casts = [
+        'embedding' => 'array',
         'metadata' => 'array',
     ];
 
@@ -115,6 +120,116 @@ class Memory extends Model
     public static function forSession(ChatSession $session): Builder
     {
         return static::scopedTo([$session->owner, $session->subject], $session->actor);
+    }
+
+    /**
+     * The memories most like a question, best first.
+     *
+     * Falls back to recency whenever it cannot do better: no embedder bound, embeddings
+     * turned off, the provider unreachable. Degrading to the older behaviour beats
+     * returning nothing, and the caller cannot tell the difference except in quality.
+     *
+     * Scoring happens in PHP over a bounded pool rather than in the database, so this
+     * needs no extension and no vector store. That pool is a real ceiling: past a few
+     * thousand memories in one scope the right answer is a vector index, not a bigger
+     * pool.
+     *
+     * @return Collection<int, static>
+     */
+    public static function search(ChatSession $session, string $query, int $limit = 10): Collection
+    {
+        $recent = fn () => static::forSession($session)
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get();
+
+        $vector = static::embedQuery($query, $session);
+
+        if ($vector === null) {
+            return $recent();
+        }
+
+        $pool = (int) config('laragents.memory.candidate_pool', 200);
+
+        $candidates = static::forSession($session)
+            ->orderByDesc('created_at')
+            ->limit($pool)
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return $candidates;
+        }
+
+        // A memory with no vector scores -INF: it sorts to the bottom but is still
+        // reachable when the pool is thin, which matters right after turning embeddings
+        // on, when most rows predate them.
+        // Scored beside the models and not on them. Writing the score onto an Eloquent
+        // model makes it an attribute, and an attribute is something a later save() will
+        // try to put in a column that does not exist.
+        return $candidates
+            ->map(fn (self $memory) => [
+                'memory' => $memory,
+                'score' => is_array($memory->embedding) && $memory->embedding !== []
+                    ? static::cosine($vector, $memory->embedding)
+                    : -INF,
+            ])
+            ->sortByDesc('score')
+            ->take($limit)
+            ->map(fn (array $row) => $row['memory'])
+            ->values();
+    }
+
+    /** @return array<int, float>|null */
+    protected static function embedQuery(string $query, ChatSession $session): ?array
+    {
+        if (! config('laragents.memory.embeddings', false)) {
+            return null;
+        }
+
+        if (! app()->bound(Embedder::class)) {
+            return null;
+        }
+
+        try {
+            return app(Embedder::class)->embed(
+                text: $query,
+                owner: $session->owner,
+                actor: $session->actor,
+                operation: 'memory_search',
+                subject: $session->subject,
+            );
+        } catch (\Throwable $e) {
+            Log::warning('laragents: memory search embedding failed, falling back to recency', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * @param  array<int, float>  $a
+     * @param  array<int, float>  $b
+     */
+    protected static function cosine(array $a, array $b): float
+    {
+        if (count($a) !== count($b) || $a === []) {
+            return 0.0;
+        }
+
+        $dot = $normA = $normB = 0.0;
+
+        foreach ($a as $i => $value) {
+            $dot += $value * $b[$i];
+            $normA += $value * $value;
+            $normB += $b[$i] * $b[$i];
+        }
+
+        if ($normA <= 0.0 || $normB <= 0.0) {
+            return 0.0;
+        }
+
+        return $dot / (sqrt($normA) * sqrt($normB));
     }
 
     /**

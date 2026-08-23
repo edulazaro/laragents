@@ -22,6 +22,10 @@ return new class extends Migration
             $table->nullableMorphs('created_by');
 
             $table->string('name');
+
+            // A face for the thing. Agents show up in lists beside people, and one
+            // without an avatar reads as broken rather than as a robot.
+            $table->string('avatar')->nullable();
             $table->string('specialty')->nullable();
             $table->longText('system_prompt')->nullable();
 

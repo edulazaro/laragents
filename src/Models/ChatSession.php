@@ -34,7 +34,10 @@ class ChatSession extends Model
         'actor_id',
         'subject_type',
         'subject_id',
+        'agent_id',
         'title',
+        'pinned',
+        'pinned_at',
         'total_tokens',
         'anonymize_pii',
         'compressed_summary',
@@ -47,6 +50,8 @@ class ChatSession extends Model
     protected $casts = [
         'total_tokens' => 'integer',
         'anonymize_pii' => 'boolean',
+        'pinned' => 'boolean',
+        'pinned_at' => 'datetime',
         'last_distilled_at' => 'datetime',
         'metadata' => 'array',
     ];

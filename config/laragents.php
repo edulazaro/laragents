@@ -129,7 +129,93 @@ return [
         'existing_context' => 30,
         'lock_seconds' => 120,
         'prompt' => null,
+
+        /*
+        | Semantic recall. OFF by default: embedding costs money on every memory written,
+        | and a package should not start spending it because you installed it.
+        |
+        | Off, memories are recalled by recency, which is a perfectly good answer at the
+        | volumes one scope produces. On, Memory::search() ranks by cosine similarity and
+        | falls back to recency whenever it cannot do better, so nothing breaks when the
+        | provider is unreachable.
+        |
+        | Scoring is done in PHP over `candidate_pool` rows, so there is no extension and
+        | no vector store to run. That pool is also the ceiling: past a few thousand
+        | memories in one scope the answer is a vector index, not a bigger pool.
+        */
+        'embeddings' => false,
+        'embedding_model' => 'text-embedding-3-small',
+        'candidate_pool' => 200,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Agents
+    |--------------------------------------------------------------------------
+    | `schedule` registers the every-minute tick that runs agents whose cron expression
+    | has come round, plus a five-minute sweep that fails tasks whose worker died. Turn it
+    | off only if you would rather register those commands yourself.
+    |
+    | Every minute is not expensive: one query for active agents with a schedule, and an
+    | expression evaluated per row. It costs something only on the minutes work is due.
+    |
+    | `debounce_seconds` swallows a repeat of the same event on the same subject.
+    | Observers fire on every save, and one logical change saved in three statements is
+    | three events: without this the agent answers three times and is billed three times.
+    |
+    | `queue` should be a queue of its own with a worker of its own. An agent run is a
+    | loop of model calls and can take minutes; sharing a queue with anything interactive
+    | means one run holds a worker while a person waits.
+    */
+
+    'agents' => [
+        'schedule' => true,
+        'queue' => 'default',
+        'debounce_seconds' => 30,
+        'stale_after_minutes' => 30,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Event triggers
+    |--------------------------------------------------------------------------
+    | The bridge between your events and your agents, and the piece that is easy to leave
+    | out and impossible to notice missing. Your agent form offers "when a document is
+    | uploaded", somebody picks it, and unless something listens for that event and calls
+    | the trigger, the agent never runs. No error, no log, no complaint.
+    |
+    | Map an event class to an invokable class that places it:
+    |
+    |     'events' => [
+    |         \EduLazaro\Laracrate\Events\FileProcessed::class => \App\Laragents\FileUploaded::class,
+    |     ],
+    |
+    |     class FileUploaded
+    |     {
+    |         public function __invoke($event): ?array
+    |         {
+    |             return [
+    |                 'event' => 'file.extracted',
+    |                 'owner' => $event->file->organization,
+    |                 'subject' => $event->file->fileable,
+    |                 'context' => ['file_id' => $event->file->id, 'file_name' => $event->file->name],
+    |             ];
+    |         }
+    |     }
+    |
+    | Return null and nothing fires, which is the right answer for an upload that belongs
+    | to no tenant.
+    |
+    | A class and not a closure because config gets cached and a cached closure is a fatal
+    | error. And a class and not a convention because only your app knows how to get an
+    | organisation out of a file.
+    |
+    | For anything you already have a hook for, skip all this and call it directly:
+    |
+    |     app(AgentTrigger::class)->fire('reply.created', $org, $case, [...]);
+    */
+
+    'events' => [],
 
     /*
     |--------------------------------------------------------------------------

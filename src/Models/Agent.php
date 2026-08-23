@@ -2,10 +2,13 @@
 
 namespace EduLazaro\Laragents\Models;
 
+use Cron\CronExpression;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -29,6 +32,7 @@ class Agent extends Model
         'created_by_type',
         'created_by_id',
         'name',
+        'avatar',
         'specialty',
         'system_prompt',
         'status',
@@ -102,5 +106,48 @@ class Agent extends Model
     public function listensTo(string $event): bool
     {
         return in_array($event, $this->event_triggers ?? [], true);
+    }
+
+    /**
+     * Whether the schedule has come round.
+     *
+     * Measured from the LAST RUN and not against the current minute, which is the
+     * difference between a schedule and a coincidence. `isDue(now())` is true only during
+     * the exact minute the expression names, so a tick lost to a restart, an overlapping
+     * run or a busy queue takes that execution with it, silently, for ever. Asking
+     * instead whether the next run after the last one has already passed means a missed
+     * minute is picked up on the following tick.
+     *
+     * The baseline for an agent that has never run is when it was created, so switching
+     * one on does not make it fire on the spot.
+     */
+    public function isDue(?\DateTimeInterface $at = null): bool
+    {
+        if (! $this->schedule_cron) {
+            return false;
+        }
+
+        $at = $at ? Carbon::instance($at) : now();
+
+        try {
+            $cron = new CronExpression($this->schedule_cron);
+        } catch (\Throwable $e) {
+            // A typo in one agent's expression must not stop the tick for everybody
+            // else, so it is logged and skipped rather than thrown.
+            Log::warning('laragents: invalid cron expression on agent', [
+                'agent_id' => $this->getKey(),
+                'schedule_cron' => $this->schedule_cron,
+            ]);
+
+            return false;
+        }
+
+        $since = $this->last_run_at ?? $this->created_at;
+
+        if (! $since) {
+            return $cron->isDue($at);
+        }
+
+        return $cron->getNextRunDate($since, 0, false) <= $at;
     }
 }

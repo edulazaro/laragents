@@ -3,6 +3,7 @@
 namespace EduLazaro\Laragents;
 
 use EduLazaro\Laragents\Contracts\ChatClient;
+use EduLazaro\Laragents\Contracts\Embedder;
 use EduLazaro\Laragents\Models\ChatMessage;
 use EduLazaro\Laragents\Models\ChatSession;
 use EduLazaro\Laragents\Models\Memory;
@@ -322,12 +323,48 @@ class MemoryDistiller
             'context_id' => $context?->getKey(),
             'created_by_type' => $session->actor?->getMorphClass(),
             'created_by_id' => $session->actor?->getKey(),
+            'agent_id' => $session->agent_id,
             'source' => Memory::SOURCE_DISTILLED,
             'category' => is_string($item['category'] ?? null) ? $item['category'] : null,
             'content' => $content,
+            'embedding' => $this->embed($content, $session),
         ]);
 
         return true;
+    }
+
+    /**
+     * The vector for a memory, or null.
+     *
+     * Null is a normal outcome, not a failure: embeddings are off by default, and when
+     * they are on the provider can still be unreachable. The row is written either way
+     * and simply sorts last in a semantic search, which beats losing the memory over a
+     * rate limit.
+     *
+     * @return array<int, float>|null
+     */
+    protected function embed(string $content, ChatSession $session): ?array
+    {
+        if (! config('laragents.memory.embeddings', false) || ! app()->bound(Embedder::class)) {
+            return null;
+        }
+
+        try {
+            return app(Embedder::class)->embed(
+                text: $content,
+                owner: $session->owner,
+                actor: $session->actor,
+                operation: 'memory_embedding',
+                subject: $session->subject,
+            );
+        } catch (\Throwable $e) {
+            Log::warning('laragents: memory embedding failed, storing without one', [
+                'session_id' => $session->getKey(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     /**
