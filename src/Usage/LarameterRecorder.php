@@ -2,21 +2,21 @@
 
 namespace EduLazaro\Laragents\Usage;
 
-use EduLazaro\Laracredits\CreditMeter;
+use EduLazaro\Larameter\CreditMeter;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Sends what the loop spends to edulazaro/laracredits.
+ * Sends what the loop spends to edulazaro/larameter.
  *
- * Enable with `'usage_recorder' => 'laracredits'` in config/laragents.php. It lives here
- * rather than in laracredits so the dependency runs one way: laracredits meters forms and
+ * Enable with `'usage_recorder' => 'larameter'` in config/laragents.php. It lives here
+ * rather than in larameter so the dependency runs one way: larameter meters forms and
  * emails and invoices and has no business knowing an AI package exists.
  *
  * The model name is the priced operation, which is what makes a rate table read the way
  * the providers publish theirs.
  */
-class LaracreditsRecorder implements UsageRecorder
+class LarameterRecorder implements UsageRecorder
 {
     public function __construct(
         protected CreditMeter $meter,

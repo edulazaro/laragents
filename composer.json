@@ -44,18 +44,18 @@
         "phpunit/phpunit": "^11.0",
         "orchestra/testbench": "^10.0",
         "edulazaro/laranon": "^1.2",
-        "edulazaro/laracredits": "dev-main"
+        "edulazaro/larameter": "dev-main"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
     "suggest": {
         "edulazaro/laranon": "Required if you turn on laragents.privacy.enabled: swaps personal data for markers before the prompt reaches the provider and restores it on the way back.",
-        "edulazaro/laracredits": "Set laragents.usage_recorder to 'laracredits' and what the loop spends is metered against your plans, with no adapter to write."
+        "edulazaro/larameter": "Set laragents.usage_recorder to 'larameter' and what the loop spends is metered against your plans, with no adapter to write."
     },
     "repositories": [
         {
             "type": "path",
-            "url": "../laracredits",
+            "url": "../larameter",
             "options": {
                 "symlink": true
             }

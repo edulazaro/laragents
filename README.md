@@ -105,9 +105,9 @@ line nobody reads is exactly how that goes unnoticed.
 The clients report tokens and nothing else. What a token costs, and whether an account may
 spend more, is not this package's business.
 
-**The short way**, if you use edulazaro/laracredits:
+**The short way**, if you use edulazaro/larameter:
 
-    'usage_recorder' => 'laracredits',
+    'usage_recorder' => 'larameter',
 
 That is the whole wiring. Tokens become credits at your rates, and a call is refused before
 it leaves once the plan runs out.

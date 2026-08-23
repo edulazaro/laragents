@@ -2,8 +2,8 @@
 
 namespace EduLazaro\Laragents\Tests\Feature;
 
-use EduLazaro\Laracredits\LaracreditsServiceProvider;
-use EduLazaro\Laracredits\Models\UsageRecord;
+use EduLazaro\Larameter\LarameterServiceProvider;
+use EduLazaro\Larameter\Models\UsageRecord;
 use EduLazaro\Laragents\Clients\OpenAiClient;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
 use EduLazaro\Laragents\Exceptions\PlanCreditsExhausted;
@@ -13,23 +13,23 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * The whole chain: the loop counts tokens, laracredits turns them into credits against
+ * The whole chain: the loop counts tokens, larameter turns them into credits against
  * your rates, and the next call is refused once the plan runs out.
  */
-class LaracreditsIntegrationTest extends TestCase
+class LarameterIntegrationTest extends TestCase
 {
     protected function getPackageProviders($app): array
     {
-        return [LaracreditsServiceProvider::class, ...parent::getPackageProviders($app)];
+        return [LarameterServiceProvider::class, ...parent::getPackageProviders($app)];
     }
 
     protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 
-        $app['config']->set('laragents.usage_recorder', 'laracredits');
-        $app['config']->set('laracredits.plans.free.credits_monthly', 1000);
-        $app['config']->set('laracredits.rates.token', [
+        $app['config']->set('laragents.usage_recorder', 'larameter');
+        $app['config']->set('larameter.plans.free.credits_monthly', 1000);
+        $app['config']->set('larameter.rates.token', [
             'gpt-4o' => ['in' => 2.50, 'out' => 10.00, 'per' => 1_000_000],
         ]);
     }
@@ -38,7 +38,7 @@ class LaracreditsIntegrationTest extends TestCase
     {
         parent::defineDatabaseMigrations();
 
-        $migration = require __DIR__ . '/../../vendor/edulazaro/laracredits/database/migrations/create_laracredits_tables.php.stub';
+        $migration = require __DIR__ . '/../../vendor/edulazaro/larameter/database/migrations/create_larameter_tables.php.stub';
         $migration->up();
     }
 
@@ -50,10 +50,10 @@ class LaracreditsIntegrationTest extends TestCase
         ], 200)]);
     }
 
-    public function test_pointing_the_option_at_laracredits_is_the_whole_setup(): void
+    public function test_pointing_the_option_at_larameter_is_the_whole_setup(): void
     {
         $this->assertInstanceOf(
-            \EduLazaro\Laragents\Usage\LaracreditsRecorder::class,
+            \EduLazaro\Laragents\Usage\LarameterRecorder::class,
             $this->app->make(UsageRecorder::class),
         );
     }

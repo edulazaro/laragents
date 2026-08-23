@@ -7,7 +7,7 @@ use EduLazaro\Laragents\Clients\OpenAiClient;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
 use EduLazaro\Laragents\Tools\ToolRegistry;
-use EduLazaro\Laragents\Usage\LaracreditsRecorder;
+use EduLazaro\Laragents\Usage\LarameterRecorder;
 use EduLazaro\Laragents\Usage\NullUsageRecorder;
 use Illuminate\Support\ServiceProvider;
 
@@ -30,17 +30,17 @@ class LaragentsServiceProvider extends ServiceProvider
             }
 
             // Shorthand for the adapter that ships with this package.
-            if ($recorder === 'laracredits') {
-                if (! class_exists(\EduLazaro\Laracredits\CreditMeter::class)) {
+            if ($recorder === 'larameter') {
+                if (! class_exists(\EduLazaro\Larameter\CreditMeter::class)) {
                     throw new \RuntimeException(
-                        "laragents.usage_recorder is set to 'laracredits' but "
-                        . 'edulazaro/laracredits is not installed. Either '
-                        . '`composer require edulazaro/laracredits` or point the option '
+                        "laragents.usage_recorder is set to 'larameter' but "
+                        . 'edulazaro/larameter is not installed. Either '
+                        . '`composer require edulazaro/larameter` or point the option '
                         . 'at your own UsageRecorder.'
                     );
                 }
 
-                return $app->make(LaracreditsRecorder::class);
+                return $app->make(LarameterRecorder::class);
             }
 
             return $app->make($recorder);
