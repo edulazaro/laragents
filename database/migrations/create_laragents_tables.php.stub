@@ -62,10 +62,45 @@ return new class extends Migration
             // that matters.
             $table->index(['session_id', 'id']);
         });
+
+        Schema::create('laragents_memories', function (Blueprint $table) {
+            $table->id();
+
+            // What the memory is attached to: a case, an organisation, a project.
+            // Required. A memory with no scope belongs to everyone and to no one.
+            $table->morphs('memorable');
+
+            // The level it applies at. NULL = everyone within that scope. Set = only
+            // that thing, usually a person, but nothing here assumes so: a team or a
+            // role works the same.
+            //
+            // This is applicability, not secrecy. Showing one person's memory to another
+            // is not a leak, it is worse: the model starts behaving with Juan as if he
+            // were Maria.
+            $table->nullableMorphs('context');
+
+            // Audit only. Never decides what is visible, never reaches the model.
+            $table->nullableMorphs('created_by');
+
+            // Free string, not an enum: apps invent their own origins and a package
+            // should not have to ship a migration every time they do.
+            $table->string('source')->nullable();
+            $table->string('category')->nullable();
+
+            $table->text('content');
+            $table->json('metadata')->nullable();
+
+            $table->timestamps();
+
+            // Selection is "the newest N for these scopes", so this is the index that
+            // matters.
+            $table->index(['memorable_type', 'memorable_id', 'created_at']);
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('laragents_memories');
         Schema::dropIfExists('laragents_chat_messages');
         Schema::dropIfExists('laragents_chat_sessions');
     }

@@ -49,7 +49,29 @@ unable to tell them apart and the user reading the wrong message half the time.
     Tools\ToolContext        whatever your tools need, carried opaquely
     Models\ChatSession       owner (tenant), actor (who talks), subject (optional frame)
     Models\ChatMessage       one turn, including the tool plumbing
+    Models\Memory            what to remember between conversations
     Privacy\Redactor         optional PII redaction, via edulazaro/laranon
+
+## Memory
+
+Two axes, and keeping them apart is what makes it reusable:
+
+    memorable   what the memory is attached to: a case, an organisation, a project
+    context     the level it applies at. NULL = everyone in that scope; set = only
+                that thing, usually a person, though nothing assumes so
+
+The second axis is **applicability, not secrecy**, and the distinction decides how you
+treat it. Showing one person's memory to another is not a leak, it is worse: the model
+starts behaving with Juan as if he were María. "María prefers bullet points" is not
+confidential, it simply does not apply to anyone else.
+
+Which is why no memory has a person as its scope. A personal preference is a memory of the
+**organisation** that applies to that person, so the same person carries different
+preferences in different organisations instead of dragging one set everywhere.
+
+`Memory::promptBlock($session)` renders the block for a system prompt, grouped so shared
+and personal stay visibly apart. Selection is by recency: semantic retrieval would need an
+embedding provider, and at the volumes one scope produces, the newest N is hard to beat.
 
 ## Privacy
 
