@@ -6,6 +6,7 @@ use EduLazaro\Laragents\Clients\AnthropicClient;
 use EduLazaro\Laragents\Clients\OpenAiClient;
 use EduLazaro\Laragents\Clients\OpenAiEmbedder;
 use EduLazaro\Laragents\Console\CleanupStaleTasksCommand;
+use EduLazaro\Laragents\Console\DistilInactiveSessionsCommand;
 use EduLazaro\Laragents\Console\RunDueAgentsCommand;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Contracts\Embedder;
@@ -95,7 +96,11 @@ class LaragentsServiceProvider extends ServiceProvider
         $this->registerEventTriggers();
 
         if ($this->app->runningInConsole()) {
-            $this->commands([RunDueAgentsCommand::class, CleanupStaleTasksCommand::class]);
+            $this->commands([
+                RunDueAgentsCommand::class,
+                CleanupStaleTasksCommand::class,
+                DistilInactiveSessionsCommand::class,
+            ]);
             $this->registerSchedule();
         }
 
@@ -174,6 +179,16 @@ class LaragentsServiceProvider extends ServiceProvider
                 ->everyFiveMinutes()
                 ->onOneServer()
                 ->withoutOverlapping();
+
+            // The companion to compression: conversations that stopped before they ever
+            // grew big enough to be summarised would otherwise never be distilled, and
+            // the package would remember long chats and forget short ones.
+            if ($this->app['config']['laragents.memory.sweep'] ?? true) {
+                $schedule->command(DistilInactiveSessionsCommand::class)
+                    ->everyThirtyMinutes()
+                    ->onOneServer()
+                    ->withoutOverlapping();
+            }
         });
     }
 }

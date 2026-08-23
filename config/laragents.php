@@ -157,6 +157,24 @@ return [
         | without it the model says it does not know rather than going to look.
         */
         'tools' => true,
+
+        /*
+        | When memories get written.
+        |
+        | `distil_on_compress` is the main path: crossing the history budget means a lot
+        | has been said, which is exactly when there is something worth keeping.
+        |
+        | `sweep` is the companion, every half hour, for conversations that stopped before
+        | they ever grew big enough to be summarised. Without it the package remembers
+        | long chats and forgets short ones, which is a strange thing to explain.
+        |
+        | `queue` should not be the one your chat replies on. Distilling costs a model
+        | call and is never the urgent part.
+        */
+        'distil_on_compress' => true,
+        'sweep' => true,
+        'inactive_after_minutes' => 30,
+        'queue' => 'default',
     ],
 
     /*

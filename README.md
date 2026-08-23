@@ -93,8 +93,21 @@ Without it the table gets read into every prompt and nothing ever puts a row in 
         app(MemoryDistiller::class)->distil($session);
     })->afterResponse();
 
-Run it **after** the answer has gone out. It costs a model call, and charging the user's
-reply for the privilege of remembering it is how a chat gets slow.
+It runs on its own, two ways, and you should know which is which.
+
+**When a conversation is compressed.** Crossing the history budget means a lot has been
+said, which is exactly when there is something worth keeping, so `HistoryCompressor`
+queues a distillation on the way past. This is the main path.
+
+**Every half hour, for conversations that stopped.** Most never grow big enough to be
+summarised: three useful exchanges and then silence. Without the sweep the package would
+remember long chats and forget short ones, which is a strange thing to explain. Those pass
+a floor of 1, because a conversation that is over deserves distilling even if it was brief.
+
+Both go through a queue, and it should not be the one your chat replies on: distilling
+costs a model call and is never the urgent part. To run it yourself:
+
+    dispatch(new DistilMemories($session->id));
 
 It asks for two independent lists. **shared** is objective fact useful to anyone, written
 impersonally; **personal** is what matters to the one person, in their own voice. The

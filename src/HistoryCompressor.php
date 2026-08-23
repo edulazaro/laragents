@@ -3,6 +3,7 @@
 namespace EduLazaro\Laragents;
 
 use EduLazaro\Laragents\Contracts\ChatClient;
+use EduLazaro\Laragents\Jobs\DistilMemories;
 use EduLazaro\Laragents\Models\ChatSession;
 use Illuminate\Support\Facades\Log;
 
@@ -98,6 +99,14 @@ class HistoryCompressor
 
         if ($lastCompressedId) {
             $session->updateSummary($summary, $lastCompressedId);
+        }
+
+        // Crossing the budget means a substantial amount has been said, which is exactly
+        // when there is something worth remembering. This is the MAIN way memories get
+        // written; the scheduled sweep only catches conversations that stop before ever
+        // getting here.
+        if (config('laragents.memory.distil_on_compress', true)) {
+            DistilMemories::dispatch($session->getKey());
         }
 
         $messages[] = ['role' => 'system', 'content' => $this->summaryHeading() . $summary];
