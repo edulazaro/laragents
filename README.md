@@ -113,26 +113,6 @@ The packaged prompt is English and knows nothing about your domain. Replace it w
 with `laragents.memory.prompt`; it just has to return the same shape and use `owner` and
 `subject` as the scope values.
 
-## Rules
-
-The hard half. A memory is distilled and weighed; a **rule** is written by a person, never
-distilled, and rendered at the top of the prompt in imperative language. "The firm never
-quotes fees over chat" is a rule. "This client tends to reply late" is a memory.
-
-Same two axes as a memory, and here the second one is also the precedence:
-
-    Rule::promptBlock($session)
-
-Shared rules render first and worded as mandatory, personal ones after and worded as
-preferences, never interleaved. Flatten them together and the model loses the only signal
-separating firm policy from one person's taste, and starts trading one off against the
-other. Within each block, `priority` ascending, ties in the order they were written.
-
-`enabled` turns a rule off without deleting it, so a firm can pause one for a week and put
-it back without retyping it. The wording of the headings is yours, in
-`laragents.rules.headings`; the defaults are blunt on purpose, because a rule the model
-reads as a suggestion is not a rule.
-
 ### Recalling it
 
 By default, recall is by recency: the newest N memories in scope go into every prompt.
@@ -154,6 +134,26 @@ last, because losing a memory to a rate limit is the worse trade.
 Scoring happens in PHP over a bounded pool, so there is no extension and no vector store
 to run. **That pool is a real ceiling.** Past a few thousand memories in one scope the
 answer is a vector index, not a bigger pool.
+
+## Rules
+
+The hard half. A memory is distilled and weighed; a **rule** is written by a person, never
+distilled, and rendered at the top of the prompt in imperative language. "The firm never
+quotes fees over chat" is a rule. "This client tends to reply late" is a memory.
+
+Same two axes as a memory, and here the second one is also the precedence:
+
+    Rule::promptBlock($session)
+
+Shared rules render first and worded as mandatory, personal ones after and worded as
+preferences, never interleaved. Flatten them together and the model loses the only signal
+separating firm policy from one person's taste, and starts trading one off against the
+other. Within each block, `priority` ascending, ties in the order they were written.
+
+`enabled` turns a rule off without deleting it, so a firm can pause one for a week and put
+it back without retyping it. The wording of the headings is yours, in
+`laragents.rules.headings`; the defaults are blunt on purpose, because a rule the model
+reads as a suggestion is not a rule.
 
 ## Making agents run
 
