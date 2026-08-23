@@ -268,14 +268,14 @@ return [
     | The defaults are blunt on purpose, because a rule the model reads as a suggestion
     | is not a rule. They are also English and generic, and yours are probably neither.
     |
-    | For per-scope wording, add a key of the form 'shared.case' or 'personal.organization'
+    | For per-scope wording, add a key of the form 'everyone.case' or 'actor.organization'
     | and it wins over the template for that scope.
     */
 
     'rules' => [
         'headings' => [
-            // 'shared' => 'MANDATORY INSTRUCTIONS FOR THIS :scope (do NOT skip them under any circumstance):',
-            // 'personal' => 'PREFERENCES OF THE CURRENT USER IN THIS :scope (respect them unless they contradict the mandatory instructions):',
+            // 'everyone' => 'MANDATORY INSTRUCTIONS FOR THIS :scope (do NOT skip them under any circumstance):',
+            // 'actor' => 'PREFERENCES OF THE CURRENT USER IN THIS :scope (respect them unless they contradict the mandatory instructions):',
         ],
     ],
 

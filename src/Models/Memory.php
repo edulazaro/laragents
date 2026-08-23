@@ -277,8 +277,8 @@ class Memory extends Model
 
         foreach ($memories as $memory) {
             $scope = $memory->memorable_type;
-            $level = $memory->memory_id === null ? 'shared' : 'personal';
-            $heading = $level === 'shared'
+            $level = $memory->memory_id === null ? 'everyone' : 'actor';
+            $heading = $level === 'everyone'
                 ? "About this {$scope}"
                 : "Applies to the current user in this {$scope}";
 

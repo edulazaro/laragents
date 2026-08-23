@@ -131,7 +131,7 @@ class MemoryToolsTest extends TestCase
 
         $result = (new SearchMemoriesTool())->execute(['query' => 'anything'], $this->context($session));
 
-        $applies = array_column($result['memories'], 'applies_to', 'content');
+        $applies = array_column($result['memories'], 'belongs_to', 'content');
 
         // The model has to be able to tell a firm-wide fact from this one person's
         // preference, or it starts applying the second to everybody.

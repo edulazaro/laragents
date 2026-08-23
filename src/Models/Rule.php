@@ -134,7 +134,7 @@ class Rule extends Model
 
         // Shared before personal, and within each, the scopes in the order they were
         // given: the wider one first, so the narrower reads as a refinement of it.
-        foreach (['shared', 'personal'] as $level) {
+        foreach (['everyone', 'actor'] as $level) {
             foreach ($order as $memorable) {
                 $lines = static::linesFor($rules, $memorable->getMorphClass(), $level);
 
@@ -154,7 +154,7 @@ class Rule extends Model
     {
         return $rules
             ->filter(fn (self $rule) => $rule->memorable_type === $morphClass
-                && ($level === 'shared') === ($rule->memory_id === null))
+                && ($level === 'everyone') === ($rule->memory_id === null))
             ->map(fn (self $rule) => $rule->content)
             ->values();
     }
@@ -169,7 +169,7 @@ class Rule extends Model
         $headings = config('laragents.rules.headings') ?? [];
 
         $template = $headings[$level] ?? match ($level) {
-            'shared' => 'MANDATORY INSTRUCTIONS FOR THIS :scope (do NOT skip them under any circumstance):',
+            'everyone' => 'MANDATORY INSTRUCTIONS FOR THIS :scope (do NOT skip them under any circumstance):',
             default => 'PREFERENCES OF THE CURRENT USER IN THIS :scope (respect them unless they contradict the mandatory instructions):',
         };
 

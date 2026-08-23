@@ -130,7 +130,7 @@ class RuleTest extends TestCase
     public function test_the_wording_is_yours(): void
     {
         config()->set('laragents.rules.headings', [
-            'shared' => 'INSTRUCCIONES OBLIGATORIAS DEL DESPACHO (NO las saltes bajo ninguna circunstancia):',
+            'everyone' => 'INSTRUCCIONES OBLIGATORIAS DEL DESPACHO (NO las saltes bajo ninguna circunstancia):',
         ]);
 
         $this->rule('Nunca cites tarifas por chat', $this->org);
