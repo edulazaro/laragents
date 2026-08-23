@@ -29,7 +29,7 @@ class LarameterIntegrationTest extends TestCase
 
         $app['config']->set('laragents.usage_recorder', 'larameter');
         $app['config']->set('larameter.plans.free.credits_monthly', 1000);
-        $app['config']->set('larameter.rates.token', [
+        $app['config']->set('larameter.rates', [
             'gpt-4o' => ['in' => 2.50, 'out' => 10.00, 'per' => 1_000_000],
         ]);
     }

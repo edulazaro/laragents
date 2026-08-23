@@ -32,7 +32,7 @@ class LarameterRecorder implements UsageRecorder
         ?Model $subject = null,
     ): void {
         $this->meter->meter(
-            account: $owner,
+            meterable: $owner,
             operation: $model,
             unit: 'token',
             quantityIn: $inputTokens,
@@ -46,8 +46,8 @@ class LarameterRecorder implements UsageRecorder
     }
 
     /**
-     * Memoised: the loop asks before every iteration, and the balance is two aggregates.
-     * See CreditMeter for why it deliberately does not notice spending mid-turn.
+     * Memoised: the loop asks before every iteration. See CreditMeter for why it
+     * deliberately does not notice spending mid-turn.
      */
     public function hasCredits(Model $owner): bool
     {
