@@ -34,11 +34,13 @@ class AgentTask extends Model
         'started_at',
         'completed_at',
         'error_message',
+        'metadata',
     ];
 
     protected $casts = [
         'input' => 'array',
         'output' => 'array',
+        'metadata' => 'array',
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
