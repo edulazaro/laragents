@@ -44,6 +44,12 @@ class AgentLoop
         array $tools = [],
         bool $persist = true,
     ): Response {
+        // The session goes in the context here and not at every call site, so a tool that
+        // needs to know which conversation it is in can always ask. Leaving it to callers
+        // means the memory tools work in agent runs and quietly fail in the chat, or the
+        // other way round, depending on who remembered.
+        $context = $context->with('session', $session);
+
         $maxIterations = (int) config('laragents.chat.max_tool_iterations', 7);
         $maxTokens = config('laragents.chat.max_response_tokens');
 

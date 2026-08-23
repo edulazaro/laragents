@@ -146,6 +146,17 @@ return [
         'embeddings' => false,
         'embedding_model' => 'text-embedding-3-small',
         'candidate_pool' => 200,
+
+        /*
+        | save_memory and search_memories, registered for you. Turn this off if you would
+        | rather write your own, or if the model should not be able to remember on its
+        | own initiative.
+        |
+        | save_memory is an action: it writes. search_memories only reads, and matters
+        | because the prompt carries the most recent memories and nothing older, so
+        | without it the model says it does not know rather than going to look.
+        */
+        'tools' => true,
     ],
 
     /*

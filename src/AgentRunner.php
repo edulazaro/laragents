@@ -128,8 +128,9 @@ class AgentRunner
             'owner_id' => $agent->owner_id,
             'subject_type' => $task->subject_type,
             'subject_id' => $task->subject_id,
+            'agent_id' => $agent->getKey(),
             'title' => $agent->name,
-            'metadata' => ['agent_id' => $agent->id, 'agent_task_id' => $task->id],
+            'metadata' => ['agent_task_id' => $task->id],
         ]);
 
         $messages = [

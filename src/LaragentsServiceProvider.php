@@ -10,6 +10,8 @@ use EduLazaro\Laragents\Console\RunDueAgentsCommand;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Contracts\Embedder;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
+use EduLazaro\Laragents\Tools\SaveMemoryTool;
+use EduLazaro\Laragents\Tools\SearchMemoriesTool;
 use EduLazaro\Laragents\Tools\ToolRegistry;
 use EduLazaro\Laragents\Usage\LarameterRecorder;
 use EduLazaro\Laragents\Usage\NullUsageRecorder;
@@ -52,7 +54,21 @@ class LaragentsServiceProvider extends ServiceProvider
             return $app->make($recorder);
         });
 
-        $this->app->singleton(ToolRegistry::class);
+        // The two memory tools come registered. A tool that ships in a package and is
+        // never handed to the model is the same nothing as one that was never written,
+        // and nobody goes looking for a registration line they did not know was missing.
+        //
+        // The closure runs on first resolve, not here, so the config is in place by then.
+        $this->app->singleton(ToolRegistry::class, function ($app) {
+            $registry = new ToolRegistry();
+
+            if ($app['config']['laragents.memory.tools'] ?? true) {
+                $registry->register(new SaveMemoryTool());
+                $registry->register(new SearchMemoriesTool());
+            }
+
+            return $registry;
+        });
 
         $this->app->bind(OpenAiClient::class, fn ($app) => new OpenAiClient($app->make(UsageRecorder::class)));
         $this->app->bind(AnthropicClient::class, fn ($app) => new AnthropicClient($app->make(UsageRecorder::class)));

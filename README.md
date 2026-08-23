@@ -135,6 +135,28 @@ Scoring happens in PHP over a bounded pool, so there is no extension and no vect
 to run. **That pool is a real ceiling.** Past a few thousand memories in one scope the
 answer is a vector index, not a bigger pool.
 
+### Two tools, registered for you
+
+    save_memory        the model remembers something on purpose
+    search_memories    it looks past what is already in the prompt
+
+They come registered, because a tool that ships in a package and is never handed to the
+model is the same nothing as one that was never written. `laragents.memory.tools` turns
+them off if you would rather write your own.
+
+`save_memory` is an action: it writes, so it is the sort of thing you may want to confirm.
+It refuses to save a personal memory when nobody is at the other end, rather than falling
+back to shared, because that would turn one person's preference into everyone's and the
+model would act on it for the next person who walks in.
+
+`search_memories` matters because the prompt carries the most recent memories and nothing
+older. Without it the model says it does not know instead of going to look. Its results
+say whether each memory applies to everyone or only to the person it is talking to.
+
+Both find their conversation through the tool context, which `AgentLoop` fills in for
+every run, so they work in an agent run and in an interactive chat without the caller
+arranging anything.
+
 ## Rules
 
 The hard half. A memory is distilled and weighed; a **rule** is written by a person, never
