@@ -35,9 +35,9 @@ class AgentTrigger
     public function fire(string $event, Model $owner, ?Model $subject = null, array $context = []): int
     {
         $agents = Agent::query()
-            ->where('owner_type', $owner->getMorphClass())
-            ->where('owner_id', $owner->getKey())
-            ->where('status', 'active')
+            ->where('tenant_type', $owner->getMorphClass())
+            ->where('tenant_id', $owner->getKey())
+            ->where('status', Agent::activeStatus())
             ->get()
             ->filter(fn (Agent $agent) => $agent->listensTo($event));
 
@@ -65,7 +65,7 @@ class AgentTrigger
     public function due(?iterable $subjects = null): int
     {
         $agents = Agent::query()
-            ->where('status', 'active')
+            ->where('status', Agent::activeStatus())
             ->whereNotNull('schedule_cron')
             ->get();
 
@@ -102,8 +102,8 @@ class AgentTrigger
     ): void {
         $task = AgentTask::create([
             'agent_id' => $agent->getKey(),
-            'subject_type' => $subject?->getMorphClass(),
-            'subject_id' => $subject?->getKey(),
+            'taskable_type' => $subject?->getMorphClass(),
+            'taskable_id' => $subject?->getKey(),
             'trigger_type' => $triggerType,
             'trigger_event' => $event,
             'status' => 'pending',
@@ -133,8 +133,8 @@ class AgentTrigger
             ->where('trigger_event', $event)
             ->when(
                 $subject,
-                fn ($q) => $q->where('subject_type', $subject->getMorphClass())->where('subject_id', $subject->getKey()),
-                fn ($q) => $q->whereNull('subject_id'),
+                fn ($q) => $q->where('taskable_type', $subject->getMorphClass())->where('taskable_id', $subject->getKey()),
+                fn ($q) => $q->whereNull('taskable_id'),
             )
             ->where('created_at', '>=', now()->subSeconds($seconds))
             ->exists();

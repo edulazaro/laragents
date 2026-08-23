@@ -18,7 +18,7 @@ class PlaceUploadedFile
 
         return [
             'event' => 'file.extracted',
-            'owner' => $event->org,
+            'tenant' => $event->org,
             'subject' => $event->case,
             'context' => ['file_name' => $event->fileName],
         ];

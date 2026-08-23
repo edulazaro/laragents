@@ -22,7 +22,7 @@ return new class extends Migration
             $table->id();
             $table->ulid('ulid')->unique();
 
-            $table->nullableMorphs('owner');
+            $table->nullableMorphs('tenant');
             $table->nullableMorphs('created_by');
 
             $table->string('name');
@@ -68,7 +68,7 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             // What the run is about, when there is such a thing. Often null.
-            $table->nullableMorphs('subject');
+            $table->nullableMorphs('taskable');
 
             // schedule | event | manual, and which event it was.
             $table->string('trigger_type')->nullable();
@@ -123,14 +123,14 @@ return new class extends Migration
 
             // The tenant: who pays and whose data this may see. Morphs so the package
             // never has to know your model.
-            $table->nullableMorphs('owner');
+            $table->nullableMorphs('tenant');
 
             // Who is talking.
             $table->nullableMorphs('actor');
 
             // What the conversation is about, when there is such a thing. Often null:
             // plenty of products have no frame beyond the tenant.
-            $table->nullableMorphs('subject');
+            $table->nullableMorphs('sessionable');
 
             // Which agent is holding this conversation, when one is. A chat with an agent
             // is still a chat: same session, same messages, same memories.
@@ -211,7 +211,7 @@ return new class extends Migration
             // This is applicability, not secrecy. Showing one person's memory to another
             // is not a leak, it is worse: the model starts behaving with Juan as if he
             // were Maria.
-            $table->nullableMorphs('context');
+            $table->nullableMorphs('memory');
 
             // Audit only. Never decides what is visible, never reaches the model.
             $table->nullableMorphs('created_by');
@@ -268,7 +268,7 @@ return new class extends Migration
             //
             // It is also the precedence: shared rules render before personal ones and are
             // worded as mandatory, so a preference cannot quietly override a policy.
-            $table->nullableMorphs('context');
+            $table->nullableMorphs('memory');
 
             // Audit only. Never decides what is visible, never reaches the model.
             $table->nullableMorphs('created_by');

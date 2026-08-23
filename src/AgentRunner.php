@@ -124,10 +124,10 @@ class AgentRunner
         // Its actor is null: nobody is at the other end, and that is also what keeps
         // personal memories out of an autonomous run.
         $session = ChatSession::create([
-            'owner_type' => $agent->owner_type,
-            'owner_id' => $agent->owner_id,
-            'subject_type' => $task->subject_type,
-            'subject_id' => $task->subject_id,
+            'tenant_type' => $agent->tenant_type,
+            'tenant_id' => $agent->tenant_id,
+            'sessionable_type' => $task->taskable_type,
+            'sessionable_id' => $task->taskable_id,
             'agent_id' => $agent->getKey(),
             'title' => $agent->name,
             'metadata' => ['agent_task_id' => $task->id],

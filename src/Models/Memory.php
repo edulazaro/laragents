@@ -43,8 +43,8 @@ class Memory extends Model
     protected $fillable = [
         'memorable_type',
         'memorable_id',
-        'context_type',
-        'context_id',
+        'memory_type',
+        'memory_id',
         'created_by_type',
         'created_by_id',
         'agent_id',
@@ -65,9 +65,9 @@ class Memory extends Model
         return $this->morphTo();
     }
 
-    public function context(): MorphTo
+    public function holder(): MorphTo
     {
-        return $this->morphTo();
+        return $this->morphTo('memory');
     }
 
     /**
@@ -105,12 +105,12 @@ class Memory extends Model
                 }
             })
             ->where(function (Builder $query) use ($context) {
-                $query->whereNull('context_id');
+                $query->whereNull('memory_id');
 
                 if ($context) {
                     $query->orWhere(function (Builder $mine) use ($context) {
-                        $mine->where('context_type', $context->getMorphClass())
-                            ->where('context_id', $context->getKey());
+                        $mine->where('memory_type', $context->getMorphClass())
+                            ->where('memory_id', $context->getKey());
                     });
                 }
             });
@@ -119,7 +119,7 @@ class Memory extends Model
     /** The memories in play for a conversation: its owner, its subject, its actor. */
     public static function forSession(ChatSession $session): Builder
     {
-        return static::scopedTo([$session->owner, $session->subject], $session->actor);
+        return static::scopedTo([$session->tenant, $session->sessionable], $session->actor);
     }
 
     /**
@@ -193,10 +193,10 @@ class Memory extends Model
         try {
             return app(Embedder::class)->embed(
                 text: $query,
-                owner: $session->owner,
+                owner: $session->tenant,
                 actor: $session->actor,
                 operation: 'memory_search',
-                subject: $session->subject,
+                subject: $session->sessionable,
             );
         } catch (\Throwable $e) {
             Log::warning('laragents: memory search embedding failed, falling back to recency', [
@@ -277,7 +277,7 @@ class Memory extends Model
 
         foreach ($memories as $memory) {
             $scope = $memory->memorable_type;
-            $level = $memory->context_id === null ? 'shared' : 'personal';
+            $level = $memory->memory_id === null ? 'shared' : 'personal';
             $heading = $level === 'shared'
                 ? "About this {$scope}"
                 : "Applies to the current user in this {$scope}";

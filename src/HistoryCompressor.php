@@ -172,7 +172,7 @@ class HistoryCompressor
                     ['role' => 'user', 'content' => $prompt],
                 ],
                 model: $this->model,
-                owner: $session->owner,
+                owner: $session->tenant,
                 actor: $session->actor,
                 operation: 'chat_compression',
                 subject: $session,

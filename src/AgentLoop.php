@@ -66,7 +66,7 @@ class AgentLoop
             $response = $this->client->chat(
                 messages: $this->outbound($messages),
                 model: $model,
-                owner: $session->owner,
+                owner: $session->tenant,
                 actor: $session->actor,
                 operation: 'chat',
                 subject: $session,

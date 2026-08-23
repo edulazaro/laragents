@@ -31,10 +31,10 @@ class RuleTest extends TestCase
     private function rule(string $content, Owner $memorable, ?Owner $context = null, int $priority = 0, bool $enabled = true): Rule
     {
         return Rule::create([
-            'memorable_type' => Owner::class,
+            'memorable_type' => 'firm',
             'memorable_id' => $memorable->id,
-            'context_type' => $context ? Owner::class : null,
-            'context_id' => $context?->id,
+            'memory_type' => $context ? 'firm' : null,
+            'memory_id' => $context?->id,
             'content' => $content,
             'priority' => $priority,
             'enabled' => $enabled,
@@ -44,12 +44,12 @@ class RuleTest extends TestCase
     private function chat(?Owner $actor = null, ?Owner $subject = null): ChatSession
     {
         return ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => $this->org->id,
-            'actor_type' => $actor ? Owner::class : null,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
+            'actor_type' => $actor ? 'firm' : null,
             'actor_id' => $actor?->id,
-            'subject_type' => $subject ? Owner::class : null,
-            'subject_id' => $subject?->id,
+            'sessionable_type' => $subject ? 'firm' : null,
+            'sessionable_id' => $subject?->id,
         ]);
     }
 

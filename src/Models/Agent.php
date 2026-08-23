@@ -27,8 +27,8 @@ class Agent extends Model
 
     protected $fillable = [
         'ulid',
-        'owner_type',
-        'owner_id',
+        'tenant_type',
+        'tenant_id',
         'created_by_type',
         'created_by_id',
         'name',
@@ -60,7 +60,7 @@ class Agent extends Model
         });
     }
 
-    public function owner(): MorphTo
+    public function tenant(): MorphTo
     {
         return $this->morphTo();
     }
@@ -80,9 +80,22 @@ class Agent extends Model
         return $this->hasMany(AgentLog::class);
     }
 
+    /**
+     * Whether this agent may run.
+     *
+     * The value comes from config and is not assumed, because YOUR app writes this column
+     * and the package only ever reads it. The migration calls it a free string on purpose;
+     * comparing it against a word of ours would quietly turn it into an enum, and an app
+     * that says 'enabled' or 'live' would get no agents firing and no error to explain it.
+     */
     public function isActive(): bool
     {
-        return $this->status === 'active';
+        return $this->status === static::activeStatus();
+    }
+
+    public static function activeStatus(): string
+    {
+        return (string) config('laragents.agents.active_status', 'active');
     }
 
     /**

@@ -28,12 +28,12 @@ class ChatSession extends Model
 
     protected $fillable = [
         'ulid',
-        'owner_type',
-        'owner_id',
+        'tenant_type',
+        'tenant_id',
         'actor_type',
         'actor_id',
-        'subject_type',
-        'subject_id',
+        'sessionable_type',
+        'sessionable_id',
         'agent_id',
         'title',
         'pinned',
@@ -63,7 +63,7 @@ class ChatSession extends Model
         });
     }
 
-    public function owner(): MorphTo
+    public function tenant(): MorphTo
     {
         return $this->morphTo();
     }
@@ -74,7 +74,7 @@ class ChatSession extends Model
         return $this->morphTo();
     }
 
-    public function subject(): MorphTo
+    public function sessionable(): MorphTo
     {
         return $this->morphTo();
     }

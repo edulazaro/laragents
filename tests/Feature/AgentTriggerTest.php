@@ -34,8 +34,8 @@ class AgentTriggerTest extends TestCase
     private function agent(array $attributes = []): Agent
     {
         return Agent::create(array_merge([
-            'owner_type' => Owner::class,
-            'owner_id' => $this->org->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
             'name' => 'Triage',
             'status' => 'active',
         ], $attributes));

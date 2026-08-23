@@ -33,8 +33,8 @@ class Rule extends Model
     protected $fillable = [
         'memorable_type',
         'memorable_id',
-        'context_type',
-        'context_id',
+        'memory_type',
+        'memory_id',
         'created_by_type',
         'created_by_id',
         'content',
@@ -54,9 +54,9 @@ class Rule extends Model
         return $this->morphTo();
     }
 
-    public function context(): MorphTo
+    public function holder(): MorphTo
     {
-        return $this->morphTo();
+        return $this->morphTo('memory');
     }
 
     /** Audit only. Never decides what is visible, never reaches the model. */
@@ -93,12 +93,12 @@ class Rule extends Model
                 }
             })
             ->where(function (Builder $query) use ($context) {
-                $query->whereNull('context_id');
+                $query->whereNull('memory_id');
 
                 if ($context) {
                     $query->orWhere(function (Builder $mine) use ($context) {
-                        $mine->where('context_type', $context->getMorphClass())
-                            ->where('context_id', $context->getKey());
+                        $mine->where('memory_type', $context->getMorphClass())
+                            ->where('memory_id', $context->getKey());
                     });
                 }
             });
@@ -106,7 +106,7 @@ class Rule extends Model
 
     public static function forSession(ChatSession $session): Builder
     {
-        return static::scopedTo([$session->owner, $session->subject], $session->actor);
+        return static::scopedTo([$session->tenant, $session->sessionable], $session->actor);
     }
 
     /**
@@ -129,7 +129,7 @@ class Rule extends Model
             return '';
         }
 
-        $order = array_values(array_filter([$session->owner, $session->subject]));
+        $order = array_values(array_filter([$session->tenant, $session->sessionable]));
         $blocks = [];
 
         // Shared before personal, and within each, the scopes in the order they were
@@ -154,7 +154,7 @@ class Rule extends Model
     {
         return $rules
             ->filter(fn (self $rule) => $rule->memorable_type === $morphClass
-                && ($level === 'shared') === ($rule->context_id === null))
+                && ($level === 'shared') === ($rule->memory_id === null))
             ->map(fn (self $rule) => $rule->content)
             ->values();
     }

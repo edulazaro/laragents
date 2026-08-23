@@ -43,7 +43,7 @@ class OpenAiClient implements ChatClient
         // apply.
         if ($owner && ! $this->usage->hasCredits($owner)) {
             Log::warning('laragents: credits exhausted, request not sent', [
-                'owner_id' => $owner->getKey(),
+                'tenant_id' => $owner->getKey(),
                 'operation' => $operation,
                 'model' => $model,
             ]);

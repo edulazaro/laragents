@@ -21,8 +21,8 @@ class AgentLoopTest extends TestCase
         $owner = Owner::create();
 
         return ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => $owner->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $owner->id,
             'title' => 'test',
         ]);
     }

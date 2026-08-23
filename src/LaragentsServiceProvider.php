@@ -140,13 +140,13 @@ class LaragentsServiceProvider extends ServiceProvider
 
                 // Null is a normal answer: not every upload belongs to a tenant, and a
                 // resolver that cannot place one says so instead of guessing.
-                if (! is_array($payload) || empty($payload['event']) || empty($payload['owner'])) {
+                if (! is_array($payload) || empty($payload['event']) || empty($payload['tenant'])) {
                     return;
                 }
 
                 $this->app->make(AgentTrigger::class)->fire(
                     $payload['event'],
-                    $payload['owner'],
+                    $payload['tenant'],
                     $payload['subject'] ?? null,
                     $payload['context'] ?? [],
                 );

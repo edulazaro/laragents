@@ -32,9 +32,9 @@ class MemoryToolsTest extends TestCase
     private function chat(?Owner $actor = null): ChatSession
     {
         return ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => $this->org->id,
-            'actor_type' => $actor ? Owner::class : null,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
+            'actor_type' => $actor ? 'firm' : null,
             'actor_id' => $actor?->id,
         ]);
     }
@@ -63,23 +63,23 @@ class MemoryToolsTest extends TestCase
     public function test_saving_a_shared_memory_reaches_everyone_in_the_scope(): void
     {
         $result = (new SaveMemoryTool())->execute(
-            ['content' => 'The bank replies slowly', 'scope' => 'owner', 'shared' => true],
+            ['content' => 'The bank replies slowly', 'memorable' => 'firm', 'everyone' => true],
             $this->context($this->chat($this->maria)),
         );
 
         $this->assertTrue($result['saved']);
-        $this->assertNull(Memory::sole()->context_id);
+        $this->assertNull(Memory::sole()->memory_id);
         $this->assertSame(Memory::SOURCE_EXPLICIT, Memory::sole()->source);
     }
 
     public function test_a_personal_memory_is_attached_to_the_person_talking(): void
     {
         (new SaveMemoryTool())->execute(
-            ['content' => 'Prefers bullet points', 'scope' => 'owner', 'shared' => false],
+            ['content' => 'Prefers bullet points', 'memorable' => 'firm', 'everyone' => false],
             $this->context($this->chat($this->maria)),
         );
 
-        $this->assertSame($this->maria->id, Memory::sole()->context_id);
+        $this->assertSame($this->maria->id, Memory::sole()->memory_id);
     }
 
     public function test_a_personal_memory_with_nobody_talking_is_refused(): void
@@ -87,7 +87,7 @@ class MemoryToolsTest extends TestCase
         // Falling back to shared would turn one person's preference into everyone's, and
         // the model would then act on it for the next person who walks in.
         $result = (new SaveMemoryTool())->execute(
-            ['content' => 'Prefers bullet points', 'scope' => 'owner', 'shared' => false],
+            ['content' => 'Prefers bullet points', 'memorable' => 'firm', 'everyone' => false],
             $this->context($this->chat(actor: null)),
         );
 
@@ -98,7 +98,7 @@ class MemoryToolsTest extends TestCase
     public function test_a_scope_the_conversation_does_not_have_is_refused(): void
     {
         $result = (new SaveMemoryTool())->execute(
-            ['content' => 'Only true here', 'scope' => 'subject', 'shared' => true],
+            ['content' => 'Only true here', 'memorable' => 'matter', 'everyone' => true],
             $this->context($this->chat($this->maria)),
         );
 
@@ -117,15 +117,15 @@ class MemoryToolsTest extends TestCase
         $session = $this->chat($this->maria);
 
         Memory::create([
-            'memorable_type' => Owner::class,
+            'memorable_type' => 'firm',
             'memorable_id' => $this->org->id,
             'content' => 'The firm bills fortnightly',
         ]);
         Memory::create([
-            'memorable_type' => Owner::class,
+            'memorable_type' => 'firm',
             'memorable_id' => $this->org->id,
-            'context_type' => Owner::class,
-            'context_id' => $this->maria->id,
+            'memory_type' => 'firm',
+            'memory_id' => $this->maria->id,
             'content' => 'Prefers bullet points',
         ]);
 

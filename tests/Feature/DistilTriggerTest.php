@@ -36,8 +36,8 @@ class DistilTriggerTest extends TestCase
     private function chat(): ChatSession
     {
         return ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => Owner::create()->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => Owner::create()->id,
         ]);
     }
 

@@ -67,7 +67,7 @@ class SearchMemoriesTool extends BaseTool
                 'scope' => $memory->memorable_type,
                 // Shared or personal, because the model has to know whether what it just
                 // found applies to the person in front of it.
-                'applies_to' => $memory->context_id === null ? 'everyone in this scope' : 'the current user',
+                'applies_to' => $memory->memory_id === null ? 'everyone in this scope' : 'the current user',
                 'category' => $memory->category,
                 'remembered_at' => $memory->created_at?->toDateString(),
             ])->all(),

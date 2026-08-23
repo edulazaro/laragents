@@ -28,10 +28,10 @@ class MemoryTest extends TestCase
     private function remember(string $content, Owner $memorable, ?Owner $context = null): Memory
     {
         return Memory::create([
-            'memorable_type' => Owner::class,
+            'memorable_type' => 'firm',
             'memorable_id' => $memorable->id,
-            'context_type' => $context ? Owner::class : null,
-            'context_id' => $context?->id,
+            'memory_type' => $context ? 'firm' : null,
+            'memory_id' => $context?->id,
             'content' => $content,
         ]);
     }
@@ -39,9 +39,9 @@ class MemoryTest extends TestCase
     private function sessionFor(Owner $org, ?Owner $actor = null): ChatSession
     {
         return ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => $org->id,
-            'actor_type' => $actor ? Owner::class : null,
+            'tenant_type' => 'firm',
+            'tenant_id' => $org->id,
+            'actor_type' => $actor ? 'firm' : null,
             'actor_id' => $actor?->id,
         ]);
     }

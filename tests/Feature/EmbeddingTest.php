@@ -35,8 +35,8 @@ class EmbeddingTest extends TestCase
     private function chat(): ChatSession
     {
         return ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => $this->org->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
         ]);
     }
 
@@ -44,7 +44,7 @@ class EmbeddingTest extends TestCase
     private function remember(string $content, ?array $vector): Memory
     {
         return Memory::create([
-            'memorable_type' => Owner::class,
+            'memorable_type' => 'firm',
             'memorable_id' => $this->org->id,
             'content' => $content,
             'embedding' => $vector,
@@ -140,8 +140,8 @@ class EmbeddingTest extends TestCase
             ], 200),
             'api.openai.com/v1/chat/completions' => Http::response([
                 'choices' => [['message' => ['content' => json_encode([
-                    'shared' => [['scope' => 'owner', 'content' => 'The bank replies slowly']],
-                    'personal' => [],
+                    'everyone' => [['memorable' => 'firm', 'content' => 'The bank replies slowly']],
+                    'actor' => [],
                 ])], 'finish_reason' => 'stop']],
                 'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 20],
             ], 200),
@@ -167,8 +167,8 @@ class EmbeddingTest extends TestCase
             'api.openai.com/v1/embeddings' => Http::response(['error' => 'boom'], 500),
             'api.openai.com/v1/chat/completions' => Http::response([
                 'choices' => [['message' => ['content' => json_encode([
-                    'shared' => [['scope' => 'owner', 'content' => 'The bank replies slowly']],
-                    'personal' => [],
+                    'everyone' => [['memorable' => 'firm', 'content' => 'The bank replies slowly']],
+                    'actor' => [],
                 ])], 'finish_reason' => 'stop']],
                 'usage' => ['prompt_tokens' => 100, 'completion_tokens' => 20],
             ], 200),

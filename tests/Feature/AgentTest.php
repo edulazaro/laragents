@@ -15,8 +15,8 @@ class AgentTest extends TestCase
         $owner = Owner::create();
 
         return Agent::create([
-            'owner_type' => Owner::class,
-            'owner_id' => $owner->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $owner->id,
             'name' => 'Nightly reviewer',
             ...$attributes,
         ]);
@@ -92,11 +92,11 @@ class AgentTest extends TestCase
 
         $task = AgentTask::create([
             'agent_id' => $this->agent()->id,
-            'subject_type' => Owner::class,
-            'subject_id' => $subject->id,
+            'taskable_type' => 'firm',
+            'taskable_id' => $subject->id,
             'status' => 'pending',
         ]);
 
-        $this->assertTrue($task->subject->is($subject));
+        $this->assertTrue($task->taskable->is($subject));
     }
 }

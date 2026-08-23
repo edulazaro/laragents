@@ -198,6 +198,14 @@ return [
     */
 
     'agents' => [
+        /*
+        | The value of agents.status that means "may run". Your app writes that column,
+        | the package only reads it, so it is configurable rather than assumed: an app
+        | that says 'enabled' or 'live' would otherwise get no agents firing at all, with
+        | no error and nothing in the log to explain it.
+        */
+        'active_status' => 'active',
+
         'schedule' => true,
         'queue' => 'default',
         'debounce_seconds' => 30,
@@ -225,7 +233,7 @@ return [
     |         {
     |             return [
     |                 'event' => 'file.extracted',
-    |                 'owner' => $event->file->organization,
+    |                 'tenant' => $event->file->organization,
     |                 'subject' => $event->file->fileable,
     |                 'context' => ['file_id' => $event->file->id, 'file_name' => $event->file->name],
     |             ];

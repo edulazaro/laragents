@@ -29,8 +29,8 @@ class ForeignKeyTest extends TestCase
     private function agent(): Agent
     {
         return Agent::create([
-            'owner_type' => Owner::class,
-            'owner_id' => Owner::create()->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => Owner::create()->id,
             'name' => 'Triage',
         ]);
     }
@@ -40,8 +40,8 @@ class ForeignKeyTest extends TestCase
         $agent = $this->agent();
 
         $session = ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => Owner::create()->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => Owner::create()->id,
             'agent_id' => $agent->id,
         ]);
 
@@ -59,7 +59,7 @@ class ForeignKeyTest extends TestCase
         $org = Owner::create();
 
         $memory = Memory::create([
-            'memorable_type' => Owner::class,
+            'memorable_type' => 'firm',
             'memorable_id' => $org->id,
             'agent_id' => $agent->id,
             'content' => 'The bank replies slowly',
@@ -76,8 +76,8 @@ class ForeignKeyTest extends TestCase
         $this->expectException(QueryException::class);
 
         ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => Owner::create()->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => Owner::create()->id,
             'agent_id' => 9999,
         ]);
     }

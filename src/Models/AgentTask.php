@@ -21,8 +21,8 @@ class AgentTask extends Model
 
     protected $fillable = [
         'agent_id',
-        'subject_type',
-        'subject_id',
+        'taskable_type',
+        'taskable_id',
         'trigger_type',
         'trigger_event',
         'status',
@@ -49,7 +49,7 @@ class AgentTask extends Model
     }
 
     /** What the run is about, when there is such a thing. Often null. */
-    public function subject(): MorphTo
+    public function taskable(): MorphTo
     {
         return $this->morphTo();
     }

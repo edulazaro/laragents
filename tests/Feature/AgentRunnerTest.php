@@ -27,8 +27,8 @@ class AgentRunnerTest extends TestCase
     private function agent(array $config = ['model' => 'gpt-4o-mini'], array $attributes = []): Agent
     {
         return Agent::create([
-            'owner_type' => Owner::class,
-            'owner_id' => Owner::create()->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => Owner::create()->id,
             'name' => 'Nightly reviewer',
             'system_prompt' => 'You review things.',
             'config' => $config,

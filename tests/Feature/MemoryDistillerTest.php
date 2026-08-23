@@ -36,12 +36,12 @@ class MemoryDistillerTest extends TestCase
     private function chat(?Owner $actor = null, ?Owner $subject = null): ChatSession
     {
         $session = ChatSession::create([
-            'owner_type' => Owner::class,
-            'owner_id' => $this->org->id,
-            'actor_type' => $actor ? Owner::class : null,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
+            'actor_type' => $actor ? 'firm' : null,
             'actor_id' => $actor?->id,
-            'subject_type' => $subject ? Owner::class : null,
-            'subject_id' => $subject?->id,
+            'sessionable_type' => $subject ? 'firm' : null,
+            'sessionable_id' => $subject?->id,
         ]);
 
         foreach ([['user', 'the bank still has not replied'], ['assistant', 'noted, I will chase it']] as [$role, $content]) {
@@ -71,44 +71,44 @@ class MemoryDistillerTest extends TestCase
     public function test_it_writes_what_the_model_kept(): void
     {
         $this->answers([
-            'shared' => [['scope' => 'owner', 'content' => 'The bank replies slowly', 'category' => 'pattern']],
-            'personal' => [['scope' => 'owner', 'content' => 'I keep meaning to chase the bank']],
+            'everyone' => [['memorable' => 'firm', 'content' => 'The bank replies slowly', 'category' => 'pattern']],
+            'actor' => [['memorable' => 'firm', 'content' => 'I keep meaning to chase the bank']],
         ]);
 
         $session = $this->chat($this->maria);
 
         $this->assertSame(2, $this->distiller()->distil($session));
 
-        $shared = Memory::whereNull('context_id')->first();
-        $personal = Memory::whereNotNull('context_id')->first();
+        $shared = Memory::whereNull('memory_id')->first();
+        $personal = Memory::whereNotNull('memory_id')->first();
 
         $this->assertSame('The bank replies slowly', $shared->content);
         $this->assertSame('pattern', $shared->category);
         $this->assertSame(Memory::SOURCE_DISTILLED, $shared->source);
-        $this->assertSame($this->maria->id, $personal->context_id);
+        $this->assertSame($this->maria->id, $personal->memory_id);
     }
 
     public function test_a_personal_memory_is_dropped_when_there_is_nobody_to_attach_it_to(): void
     {
         $this->answers([
-            'shared' => [['scope' => 'owner', 'content' => 'The bank replies slowly']],
-            'personal' => [['scope' => 'owner', 'content' => 'I am worried about this']],
+            'everyone' => [['memorable' => 'firm', 'content' => 'The bank replies slowly']],
+            'actor' => [['memorable' => 'firm', 'content' => 'I am worried about this']],
         ]);
 
         // An autonomous run. Attaching a personal memory to the scope instead would make
         // it apply to everybody, which is how one person's worry becomes the firm's.
         $this->assertSame(1, $this->distiller()->distil($this->chat(actor: null)));
-        $this->assertSame(0, Memory::whereNotNull('context_id')->count());
+        $this->assertSame(0, Memory::whereNotNull('memory_id')->count());
     }
 
     public function test_a_scope_the_session_does_not_have_is_ignored(): void
     {
         $this->answers([
-            'shared' => [
-                ['scope' => 'subject', 'content' => 'Only true of this matter'],
-                ['scope' => 'owner', 'content' => 'True of the firm'],
+            'everyone' => [
+                ['memorable' => 'matter', 'content' => 'Only true of this matter'],
+                ['memorable' => 'firm', 'content' => 'True of the firm'],
             ],
-            'personal' => [],
+            'actor' => [],
         ]);
 
         // No subject on this session, so a memory scoped to one has nowhere to hang.
@@ -119,8 +119,8 @@ class MemoryDistillerTest extends TestCase
     public function test_it_does_not_write_the_same_memory_twice(): void
     {
         $this->answers([
-            'shared' => [['scope' => 'owner', 'content' => 'The bank replies slowly']],
-            'personal' => [],
+            'everyone' => [['memorable' => 'firm', 'content' => 'The bank replies slowly']],
+            'actor' => [],
         ]);
 
         $session = $this->chat($this->maria);
@@ -136,7 +136,7 @@ class MemoryDistillerTest extends TestCase
 
     public function test_it_never_reads_the_same_window_twice(): void
     {
-        $this->answers(['shared' => [], 'personal' => []]);
+        $this->answers(['everyone' => [], 'actor' => []]);
 
         $session = $this->chat($this->maria);
         $this->distiller()->distil($session);
@@ -153,7 +153,7 @@ class MemoryDistillerTest extends TestCase
     public function test_a_short_exchange_is_not_worth_a_model_call(): void
     {
         config()->set('laragents.memory.min_messages', 10);
-        $this->answers(['shared' => [], 'personal' => []]);
+        $this->answers(['everyone' => [], 'actor' => []]);
 
         $this->assertSame(0, $this->distiller()->distil($this->chat($this->maria)));
 
@@ -164,8 +164,8 @@ class MemoryDistillerTest extends TestCase
     {
         config()->set('laragents.memory.min_messages', 10);
         $this->answers([
-            'shared' => [['scope' => 'owner', 'content' => 'The bank replies slowly']],
-            'personal' => [],
+            'everyone' => [['memorable' => 'firm', 'content' => 'The bank replies slowly']],
+            'actor' => [],
         ]);
 
         // The cron that wraps up abandoned conversations passes 1. There will be no
@@ -177,7 +177,7 @@ class MemoryDistillerTest extends TestCase
     {
         Http::fake(['api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => "Sure! Here you go:\n```json\n"
-                . '{"shared":[{"scope":"owner","content":"The bank replies slowly"}],"personal":[]}'
+                . '{"everyone":[{"memorable":"firm","content":"The bank replies slowly"}],"actor":[]}'
                 . "\n```"], 'finish_reason' => 'stop']],
             'usage' => ['prompt_tokens' => 10, 'completion_tokens' => 5],
         ], 200)]);
@@ -213,7 +213,7 @@ class MemoryDistillerTest extends TestCase
 
     public function test_a_session_with_no_scope_is_sealed_without_a_call(): void
     {
-        $this->answers(['shared' => [], 'personal' => []]);
+        $this->answers(['everyone' => [], 'actor' => []]);
 
         $orphan = ChatSession::create(['title' => 'nobody owns this']);
         ChatMessage::create(['session_id' => $orphan->id, 'role' => 'user', 'content' => 'hello']);

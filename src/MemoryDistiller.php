@@ -63,7 +63,7 @@ class MemoryDistiller
 
         // A memory with no scope belongs to everyone and to no one. Seal it anyway, or
         // the cron picks this session up for ever.
-        if (! $session->owner && ! $session->subject) {
+        if (! $session->tenant && ! $session->sessionable) {
             $this->seal($session);
 
             return 0;
@@ -118,7 +118,7 @@ class MemoryDistiller
             ->get();
     }
 
-    /** @return array{shared: array, personal: array} */
+    /** @return array{everyone: array, actor: array} */
     protected function ask(ChatSession $session, Collection $messages): array
     {
         $response = $this->client->chat(
@@ -127,13 +127,39 @@ class MemoryDistiller
                 ['role' => 'user', 'content' => $this->userPrompt($session, $messages)],
             ],
             model: (string) config('laragents.memory.model', 'gpt-4o-mini'),
-            owner: $session->owner,
+            owner: $session->tenant,
             actor: $session->actor,
             operation: 'memory_distillation',
-            subject: $session->subject,
+            subject: $session->sessionable,
         );
 
         return $this->parse($response->content);
+    }
+
+    /**
+     * What this conversation can hang a memory off, keyed by morph alias.
+     *
+     * The keys are YOUR words: whatever your morph map calls them, which is what ends up
+     * in memorable_type anyway. The package never invents a value here, so an app whose
+     * scopes are a matter and a firm sees "matter" and "firm", and one whose scopes are
+     * potatoes sees "potato".
+     *
+     * The narrower one goes first, so on the rare occasion both are the same type it is
+     * the specific one that stays addressable.
+     *
+     * @return array<string, Model>
+     */
+    protected function scopes(ChatSession $session): array
+    {
+        $scopes = [];
+
+        foreach ([$session->sessionable, $session->tenant] as $model) {
+            if ($model) {
+                $scopes[$model->getMorphClass()] ??= $model;
+            }
+        }
+
+        return $scopes;
     }
 
     protected function systemPrompt(ChatSession $session): string
@@ -144,36 +170,38 @@ class MemoryDistiller
             return $configured;
         }
 
-        $scopes = [];
+        $lines = [];
 
-        if ($session->owner) {
-            $scopes[] = '"owner" for anything true of the wider scope (the organisation, the account)';
+        if ($session->sessionable) {
+            $lines[] = '"' . $session->sessionable->getMorphClass()
+                . '" for anything true only of what this conversation is about';
         }
 
-        if ($session->subject) {
-            $scopes[] = '"subject" for anything true only of what this conversation is about';
+        if ($session->tenant) {
+            $lines[] = '"' . $session->tenant->getMorphClass()
+                . '" for anything true of the wider scope it belongs to';
         }
 
-        $scopeList = '- ' . implode("\n- ", $scopes);
+        $scopeList = '- ' . implode("\n- ", $lines);
 
         return <<<PROMPT
         You distil durable memories out of a conversation. Read the new messages and
         return TWO INDEPENDENT LISTS. Never invent anything. If a list has no clear
         material, return it empty.
 
-        "shared" holds objective facts useful to anyone working on this, written
-        impersonally. Facts about the subject, the parties involved, observed patterns,
+        "everyone" holds objective facts useful to anyone working on this, written
+        impersonally. Facts about the matter, the parties involved, observed patterns,
         events that happened.
 
-        HARD RULES FOR "shared". Break these and you are leaking personal data:
+        HARD RULES FOR "everyone". Break these and you are leaking personal data:
         - Never mention the person you are talking to, in any person.
         - Never include their doubts, hypotheses, opinions or state of mind.
         - Never include what they are learning or where their gaps are.
         - Write in the third person or impersonally, as a fact about the world.
-        - If you have the slightest doubt whether something exposes them, it is not
-          shared. It goes in "personal" or nowhere.
+        - If you have the slightest doubt whether something exposes them, it does not go
+          in "everyone". It goes in "actor" or nowhere.
 
-        "personal" holds what matters to that one person, in their own voice: their open
+        "actor" holds what matters to that one person, in their own voice: their open
         threads, their working hypotheses, what they keep meaning to check.
 
         Standing instructions about HOW to answer ("always use bullet points", "never
@@ -184,7 +212,8 @@ class MemoryDistiller
         conceptually, they may be disjoint, and either may be empty. Do not force
         symmetry.
 
-        Each entry carries a "scope":
+        Each entry carries a "memorable", which says what it hangs off. The only values
+        allowed are these, exactly as written:
         {$scopeList}
 
         Common rules:
@@ -193,8 +222,8 @@ class MemoryDistiller
         - Do not summarise the conversation. Discrete facts only.
 
         Return ONLY a valid JSON object of exactly this shape:
-        {"shared": [{"scope": "...", "content": "...", "category": "..."}],
-         "personal": [{"scope": "...", "content": "...", "category": "..."}]}
+        {"everyone": [{"memorable": "...", "content": "...", "category": "..."}],
+         "actor": [{"memorable": "...", "content": "...", "category": "..."}]}
         PROMPT;
     }
 
@@ -205,12 +234,12 @@ class MemoryDistiller
         $existing = Memory::forSession($session)
             ->orderByDesc('created_at')
             ->limit($limit)
-            ->get(['memorable_type', 'context_id', 'content']);
+            ->get(['memorable_type', 'memory_id', 'content']);
 
         $existingBlock = $existing->isEmpty()
             ? '(none yet)'
             : $existing->map(function (Memory $memory) {
-                $level = $memory->context_id === null ? 'shared' : 'personal';
+                $level = $memory->memory_id === null ? 'everyone' : 'actor';
 
                 return "[{$memory->memorable_type}/{$level}] {$memory->content}";
             })->implode("\n");
@@ -236,11 +265,11 @@ class MemoryDistiller
      * response_format with a schema, this becomes unnecessary and the failure mode stops
      * being "sometimes the whole window is lost to a stray quote".
      *
-     * @return array{shared: array, personal: array}
+     * @return array{everyone: array, actor: array}
      */
     protected function parse(string $raw): array
     {
-        $empty = ['shared' => [], 'personal' => []];
+        $empty = ['everyone' => [], 'actor' => []];
 
         $raw = trim(preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($raw)));
 
@@ -258,44 +287,45 @@ class MemoryDistiller
         }
 
         return [
-            'shared' => is_array($decoded['shared'] ?? null) ? $decoded['shared'] : [],
-            'personal' => is_array($decoded['personal'] ?? null) ? $decoded['personal'] : [],
+            'everyone' => is_array($decoded['everyone'] ?? null) ? $decoded['everyone'] : [],
+            'actor' => is_array($decoded['actor'] ?? null) ? $decoded['actor'] : [],
         ];
     }
 
-    /** @param array{shared: array, personal: array} $proposed */
+    /** @param array{everyone: array, actor: array} $proposed */
     protected function persist(array $proposed, ChatSession $session): int
     {
         $created = 0;
 
-        foreach ($proposed['shared'] as $item) {
-            $created += $this->insert($item, $session, context: null) ? 1 : 0;
+        foreach ($proposed['everyone'] as $item) {
+            $created += $this->insert($item, $session, holder: null) ? 1 : 0;
         }
 
         // No actor means an autonomous run with nobody behind it. There is no one for a
         // personal memory to apply to, so those are dropped rather than attached to the
         // scope, where they would start applying to everybody.
         if ($session->actor) {
-            foreach ($proposed['personal'] as $item) {
-                $created += $this->insert($item, $session, context: $session->actor) ? 1 : 0;
+            foreach ($proposed['actor'] as $item) {
+                $created += $this->insert($item, $session, holder: $session->actor) ? 1 : 0;
             }
         }
 
         return $created;
     }
 
-    protected function insert(mixed $item, ChatSession $session, ?Model $context): bool
+    protected function insert(mixed $item, ChatSession $session, ?Model $holder): bool
     {
         if (! is_array($item)) {
             return false;
         }
 
         $content = trim((string) ($item['content'] ?? ''));
-        $memorable = match ($item['scope'] ?? null) {
-            'owner' => $session->owner,
-            'subject' => $session->subject,
-            default => null,
-        };
+
+        // Resolved against what this conversation actually has, by morph alias. A fixed
+        // list of package words here would mean every app had to translate its own
+        // vocabulary into ours, and anything it could not translate was dropped in
+        // silence.
+        $memorable = $this->scopes($session)[$item['memorable'] ?? ''] ?? null;
 
         if ($content === '' || ! $memorable) {
             return false;
@@ -306,9 +336,9 @@ class MemoryDistiller
             ->where('memorable_id', $memorable->getKey())
             ->where('content', $content)
             ->when(
-                $context,
-                fn ($q) => $q->where('context_type', $context->getMorphClass())->where('context_id', $context->getKey()),
-                fn ($q) => $q->whereNull('context_id'),
+                $holder,
+                fn ($q) => $q->where('memory_type', $holder->getMorphClass())->where('memory_id', $holder->getKey()),
+                fn ($q) => $q->whereNull('memory_id'),
             )
             ->exists();
 
@@ -319,8 +349,8 @@ class MemoryDistiller
         Memory::create([
             'memorable_type' => $memorable->getMorphClass(),
             'memorable_id' => $memorable->getKey(),
-            'context_type' => $context?->getMorphClass(),
-            'context_id' => $context?->getKey(),
+            'memory_type' => $holder?->getMorphClass(),
+            'memory_id' => $holder?->getKey(),
             'created_by_type' => $session->actor?->getMorphClass(),
             'created_by_id' => $session->actor?->getKey(),
             'agent_id' => $session->agent_id,
@@ -352,10 +382,10 @@ class MemoryDistiller
         try {
             return app(Embedder::class)->embed(
                 text: $content,
-                owner: $session->owner,
+                owner: $session->tenant,
                 actor: $session->actor,
                 operation: 'memory_embedding',
-                subject: $session->subject,
+                subject: $session->sessionable,
             );
         } catch (\Throwable $e) {
             Log::warning('laragents: memory embedding failed, storing without one', [

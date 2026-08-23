@@ -37,8 +37,8 @@ class EventBridgeTest extends TestCase
         $case = Owner::create();
 
         Agent::create([
-            'owner_type' => Owner::class,
-            'owner_id' => $org->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $org->id,
             'name' => 'Triage',
             'status' => 'active',
             'event_triggers' => ['file.extracted'],
@@ -50,7 +50,7 @@ class EventBridgeTest extends TestCase
         $task = AgentTask::sole();
 
         $this->assertSame('file.extracted', $task->trigger_event);
-        $this->assertSame($case->id, $task->subject_id);
+        $this->assertSame($case->id, $task->taskable_id);
         $this->assertSame('sentencia.pdf', $task->input['file_name']);
 
         Queue::assertPushed(RunAgentTask::class);
@@ -61,8 +61,8 @@ class EventBridgeTest extends TestCase
         Queue::fake();
 
         Agent::create([
-            'owner_type' => Owner::class,
-            'owner_id' => Owner::create()->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => Owner::create()->id,
             'name' => 'Triage',
             'status' => 'active',
             'event_triggers' => ['file.extracted'],

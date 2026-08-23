@@ -10,6 +10,41 @@ parts that are yours.
 > **Status: early.** Ported from a production app but not yet running from here. The
 > contracts are settled; expect the surface around them to move.
 
+## Names
+
+Every table names the thing it is about with an `-able`, and everything else says what it
+is. Read this once and the rest of the package follows.
+
+| Column | Holds | In a law firm |
+|---|---|---|
+| `chat_sessions.tenant` | whose conversation this is, and who the usage is charged to | the firm |
+| `chat_sessions.actor` | who is talking | the lawyer |
+| `chat_sessions.sessionable` | what the conversation is about, or null | the case |
+| `memories.memorable` | what the memory hangs off | the case, or the firm |
+| `memories.memory` | whose memory it is, or null for everyone in that scope | the lawyer, a team |
+| `rules.memorable` | what the rule hangs off | the case, or the firm |
+| `rules.memory` | whose rule it is, or null for everyone in that scope | the lawyer |
+| `agents.tenant` | whose agent it is | the firm |
+| `agent_tasks.taskable` | what the run is about, or null | the case |
+
+All of them are polymorphic, so each is two columns (`_type` and `_id`) and the package
+never learns what they point at.
+
+Three things follow from that table and are worth stating outright:
+
+**`tenant` and `sessionable` are not the same axis.** One is who pays, the other is what
+it is about. A background job holding only a session id still has to know who to bill, and
+the package cannot walk from a case to the firm that owns it. Two scopes is also what lets
+a conversation about one case produce a memory about the whole firm.
+
+**Values in `_type` columns are YOUR morph aliases, never the package's words.** A scope
+called `matter` is addressed as `"matter"`. The distiller reads the valid values off the
+session and offers them to the model; nothing has to be translated and nothing is dropped
+for failing to translate.
+
+**`memories.memory` is not who wrote it.** That is `created_by`, and which agent produced
+it is `agent_id`. This column is only who it belongs to.
+
 ## What it does, and what it refuses to do
 
 **It does:** the agentic loop (call, run tools, feed results back, repeat, with a cap),
@@ -68,8 +103,8 @@ unable to tell them apart and the user reading the wrong message half the time.
 Two axes, and keeping them apart is what makes it reusable:
 
     memorable   what the memory is attached to: a case, an organisation, a project
-    context     the level it applies at. NULL = everyone in that scope; set = only
-                that thing, usually a person, though nothing assumes so
+    memory      whose it is. NULL = everyone in that scope; set = only that thing,
+                usually a person, though a team or a role works the same
 
 The second axis is **applicability, not secrecy**, and the distinction decides how you
 treat it. Showing one person's memory to another is not a leak, it is worse: the model
@@ -123,8 +158,8 @@ again and every attempt is paid for. A cron that wakes up abandoned conversation
 short.
 
 The packaged prompt is English and knows nothing about your domain. Replace it wholesale
-with `laragents.memory.prompt`; it just has to return the same shape and use `owner` and
-`subject` as the scope values.
+with `laragents.memory.prompt`; it just has to return the same shape, and its `memorable`
+values are read off the session, so they are your morph aliases and not ours.
 
 ### Recalling it
 
@@ -228,7 +263,7 @@ picked up on the following tick.
         {
             return [
                 'event' => 'file.extracted',
-                'owner' => $event->file->organization,
+                'tenant' => $event->file->organization,
                 'subject' => $event->file->case,
                 'context' => ['file_id' => $event->file->id],
             ];
