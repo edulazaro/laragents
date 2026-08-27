@@ -28,11 +28,17 @@ class RuleTest extends TestCase
         $this->juan = Owner::create();
     }
 
-    private function rule(string $content, Owner $memorable, ?Owner $context = null, int $priority = 0, bool $enabled = true): Rule
+    private function rule(string $content, Owner $scope, ?Owner $context = null, int $priority = 0, bool $enabled = true): Rule
     {
+        // The firm is the tenant, so its own rules carry no memorable: they are not about
+        // any one matter. Anything narrower than the firm goes in memorable.
+        $firmWide = $scope->id === $this->org->id;
+
         return Rule::create([
-            'memorable_type' => 'firm',
-            'memorable_id' => $memorable->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
+            'memorable_type' => $firmWide ? null : 'firm',
+            'memorable_id' => $firmWide ? null : $scope->id,
             'memory_type' => $context ? 'firm' : null,
             'memory_id' => $context?->id,
             'content' => $content,
@@ -41,16 +47,27 @@ class RuleTest extends TestCase
         ]);
     }
 
-    private function chat(?Owner $actor = null, ?Owner $subject = null): ChatSession
+    private function chat(?Owner $actor = null, ?Owner $subject = null, ?Owner $tenant = null): ChatSession
     {
         return ChatSession::create([
             'tenant_type' => 'firm',
-            'tenant_id' => $this->org->id,
+            'tenant_id' => ($tenant ?? $this->org)->id,
             'actor_type' => $actor ? 'firm' : null,
             'actor_id' => $actor?->id,
             'sessionable_type' => $subject ? 'firm' : null,
             'sessionable_id' => $subject?->id,
         ]);
+    }
+
+    public function test_a_rule_never_crosses_to_another_tenant(): void
+    {
+        // Worse than a memory leaking: a rule is an instruction, so the other firm's
+        // policy would be obeyed rather than merely known.
+        $this->rule('Never quote fees over chat', $this->org);
+
+        $block = Rule::promptBlock($this->chat($this->maria, null, Owner::create()));
+
+        $this->assertStringNotContainsString('Never quote fees over chat', $block);
     }
 
     public function test_a_firm_rule_reaches_everyone_and_a_preference_does_not(): void

@@ -31,10 +31,12 @@ is. Read this once and the rest of the package follows.
 | `chat_sessions.tenant` | whose conversation this is, and who the usage is charged to | the firm |
 | `chat_sessions.actor` | who is talking | the lawyer |
 | `chat_sessions.sessionable` | what the conversation is about, or null | the case |
-| `memories.memorable` | what the memory hangs off | the case, or the firm |
-| `memories.memory` | whose memory it is, or null for everyone in that scope | the lawyer, a team |
-| `rules.memorable` | what the rule hangs off | the case, or the firm |
-| `rules.memory` | whose rule it is, or null for everyone in that scope | the lawyer |
+| `memories.tenant` | whose memory it is | the firm |
+| `memories.memorable` | what it is about, or null for the tenant as a whole | the case |
+| `memories.memory` | who it applies to, or null for everyone in that scope | the lawyer, a team |
+| `rules.tenant` | whose rule it is | the firm |
+| `rules.memorable` | what it is about, or null for the tenant as a whole | the case |
+| `rules.memory` | who it applies to, or null for everyone in that scope | the lawyer |
 | `agents.tenant` | whose agent it is | the firm |
 | `agent_tasks.taskable` | what the run is about, or null | the case |
 
@@ -111,13 +113,20 @@ unable to tell them apart and the user reading the wrong message half the time.
 
 ## Memory
 
-Two axes, and keeping them apart is what makes it reusable:
+Three axes, and keeping them apart is what makes it reusable:
 
-    memorable   what the memory is attached to: a case, an organisation, a project
-    memory      whose it is. NULL = everyone in that scope; set = only that thing,
-                usually a person, though a team or a role works the same
+    tenant      whose it is: the firm, the workspace, the account
+    memorable   what it is about: a case, a project. NULL = the tenant as a whole,
+                which is where "we bill fortnightly" belongs
+    memory      who it applies to. NULL = everyone in that scope; set = only that
+                thing, usually a person, though a team or a role works the same
 
-The second axis is **applicability, not secrecy**, and the distinction decides how you
+`tenant` is the one that has to be right. The other two decide what the model is told and
+when; this one decides whose data it is at all. Two tenants on one install share the morph
+aliases and can share the ids behind them, so a row without a tenant is reachable from the
+next tenant's conversation. Everything the package writes fills it in from the session.
+
+The `memory` axis is **applicability, not secrecy**, and the distinction decides how you
 treat it. Showing one person's memory to another is not a leak, it is worse: the model
 starts behaving with Juan as if he were María. "María prefers bullet points" is not
 confidential, it simply does not apply to anyone else.

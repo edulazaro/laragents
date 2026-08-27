@@ -44,8 +44,8 @@ class EmbeddingTest extends TestCase
     private function remember(string $content, ?array $vector): Memory
     {
         return Memory::create([
-            'memorable_type' => 'firm',
-            'memorable_id' => $this->org->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
             'content' => $content,
             'embedding' => $vector,
         ]);

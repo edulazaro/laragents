@@ -204,9 +204,18 @@ return new class extends Migration
         Schema::create('laragents_memories', function (Blueprint $table) {
             $table->id();
 
-            // What the memory is attached to: a case, an organisation, a project.
-            // Required. A memory with no scope belongs to everyone and to no one.
-            $table->morphs('memorable');
+            // Whose it is. Not what it is about: that is `memorable` below. Without
+            // this, a memory hanging off a property does not know which firm it belongs
+            // to, so deleting the firm orphans it and nobody can answer "what do you
+            // hold about us", which is the question somebody asks when they exercise a
+            // right of erasure. Morphs carry no foreign key, so nothing cascades.
+            $table->nullableMorphs('tenant');
+
+            // What it is about: a case, a property, a deal. NULL means the tenant as a
+            // whole, which is what "a fact about this firm" is. Nullable since the
+            // tenant became a field of its own: before it, saying that meant writing
+            // the organisation into this column, and then into two.
+            $table->nullableMorphs('memorable');
 
             // The level it applies at. NULL = everyone within that scope. Set = only
             // that thing, usually a person, but nothing here assumes so: a team or a
@@ -251,9 +260,11 @@ return new class extends Migration
 
             $table->timestamps();
 
-            // Selection is "the newest N for these scopes", so this is the index that
-            // matters.
-            $table->index(['memorable_type', 'memorable_id', 'created_at']);
+            // Selection is "the newest N for this tenant", so this is the index that
+            // matters. It leads with the tenant and not the memorable because most rows
+            // have no memorable: they are about the tenant as a whole. The narrower
+            // lookup rides the index nullableMorphs already made for `memorable`.
+            $table->index(['tenant_type', 'tenant_id', 'created_at']);
         });
 
         /*
@@ -264,8 +275,10 @@ return new class extends Migration
         Schema::create('laragents_rules', function (Blueprint $table) {
             $table->id();
 
-            // What it is attached to: an organisation, a case, a project.
-            $table->morphs('memorable');
+            // Same three axes as a memory: whose it is, what it is about, who it
+            // applies to. A rule for the whole firm is a null memorable.
+            $table->nullableMorphs('tenant');
+            $table->nullableMorphs('memorable');
 
             // Who it applies to. NULL = everyone in that scope, which is how an admin
             // writes a rule for the whole firm. Set = one person's own preference.
@@ -291,7 +304,9 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->index(['memorable_type', 'memorable_id', 'enabled']);
+            // Leads with the tenant for the same reason as memories: a rule about the
+            // firm as a whole has no memorable.
+            $table->index(['tenant_type', 'tenant_id', 'enabled']);
         });
     }
 

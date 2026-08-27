@@ -110,13 +110,13 @@ class SaveMemoryTool extends Tool
         }
 
         $content = trim((string) ($args['content'] ?? ''));
-        $memorable = $this->scopes($session)[$args['memorable'] ?? ''] ?? null;
+        $scope = $this->scopes($session)[$args['memorable'] ?? ''] ?? null;
 
         if ($content === '') {
             return ['error' => 'Nothing to remember.'];
         }
 
-        if (! $memorable) {
+        if (! $scope) {
             return [
                 'error' => 'That is not something this conversation can hang a memory off.',
                 'valid_values' => array_keys($this->scopes($session)),
@@ -133,9 +133,21 @@ class SaveMemoryTool extends Tool
             return ['error' => 'There is nobody in this conversation for a personal memory to apply to.'];
         }
 
+        // The tenant is not a subject: something true of the firm as a whole is a memory
+        // with no memorable. The model still says "firm" because that is the word it was
+        // given, and that word is the tenant's own morph alias.
+        $tenant = $session->tenant;
+        $memorable = $tenant
+            && $scope->getMorphClass() === $tenant->getMorphClass()
+            && (string) $scope->getKey() === (string) $tenant->getKey()
+                ? null
+                : $scope;
+
         $memory = Memory::create([
-            'memorable_type' => $memorable->getMorphClass(),
-            'memorable_id' => $memorable->getKey(),
+            'tenant_type' => $tenant?->getMorphClass(),
+            'tenant_id' => $tenant?->getKey(),
+            'memorable_type' => $memorable?->getMorphClass(),
+            'memorable_id' => $memorable?->getKey(),
             'memory_type' => $holder?->getMorphClass(),
             'memory_id' => $holder?->getKey(),
             'created_by_type' => $session->actor?->getMorphClass(),

@@ -88,6 +88,25 @@ class MemoryDistillerTest extends TestCase
         $this->assertSame($this->maria->id, $personal->memory_id);
     }
 
+    public function test_what_the_model_calls_the_firm_is_written_as_the_tenant(): void
+    {
+        // The model answers with a morph alias because that is the vocabulary it was
+        // given, and "firm" happens to be the tenant's. What comes back as a subject has
+        // to be stored as the tenant, or the row would be about the firm rather than the
+        // firm's.
+        $this->answers([
+            'everyone' => [['memorable' => 'firm', 'content' => 'The bank replies slowly']],
+            'actor' => [],
+        ]);
+
+        $this->distiller()->distil($this->chat($this->maria));
+
+        $memory = Memory::first();
+
+        $this->assertSame($this->org->id, $memory->tenant_id);
+        $this->assertNull($memory->memorable_id);
+    }
+
     public function test_a_personal_memory_is_dropped_when_there_is_nobody_to_attach_it_to(): void
     {
         $this->answers([

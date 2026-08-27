@@ -117,13 +117,13 @@ class MemoryToolsTest extends TestCase
         $session = $this->chat($this->maria);
 
         Memory::create([
-            'memorable_type' => 'firm',
-            'memorable_id' => $this->org->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
             'content' => 'The firm bills fortnightly',
         ]);
         Memory::create([
-            'memorable_type' => 'firm',
-            'memorable_id' => $this->org->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $this->org->id,
             'memory_type' => 'firm',
             'memory_id' => $this->maria->id,
             'content' => 'Prefers bullet points',

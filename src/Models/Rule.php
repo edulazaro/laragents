@@ -31,6 +31,8 @@ class Rule extends Model
     protected $table = 'laragents_rules';
 
     protected $fillable = [
+        'tenant_type',
+        'tenant_id',
         'memorable_type',
         'memorable_id',
         'memory_type',
@@ -48,6 +50,16 @@ class Rule extends Model
         'enabled' => 'boolean',
         'metadata' => 'array',
     ];
+
+    /**
+     * Tenant.
+     *
+     * @return MorphTo
+     */
+    public function tenant(): MorphTo
+    {
+        return $this->morphTo();
+    }
 
     /**
      * Memorable.
@@ -84,17 +96,26 @@ class Rule extends Model
      *                                    which is the safe reading: with no person to
      *                                    scope to, no personal preference applies.
      */
-    public static function scopedTo(array $memorables, ?Model $context = null): Builder
+    public static function scopedTo(array $memorables, ?Model $context = null, ?Model $tenant = null): Builder
     {
         $memorables = array_values(array_filter($memorables));
 
-        if (empty($memorables)) {
+        if (empty($memorables) && ! $tenant) {
             return static::query()->whereRaw('1 = 0');
         }
 
         return static::query()
             ->where('enabled', true)
-            ->where(function (Builder $query) use ($memorables) {
+            ->when($tenant, fn (Builder $query) => $query
+                ->where('tenant_type', $tenant->getMorphClass())
+                ->where('tenant_id', $tenant->getKey()))
+            ->where(function (Builder $query) use ($memorables, $tenant) {
+                // A rule with no memorable is a rule for the whole tenant, which is what
+                // "how this firm writes" is.
+                if ($tenant) {
+                    $query->whereNull('memorable_id');
+                }
+
                 foreach ($memorables as $memorable) {
                     $query->orWhere(function (Builder $scope) use ($memorable) {
                         $scope->where('memorable_type', $memorable->getMorphClass())
@@ -122,7 +143,7 @@ class Rule extends Model
      */
     public static function forSession(ChatSession $session): Builder
     {
-        return static::scopedTo([$session->tenant, $session->sessionable], $session->actor);
+        return static::scopedTo([$session->sessionable], $session->actor, $session->tenant);
     }
 
     /**
@@ -145,20 +166,33 @@ class Rule extends Model
             return '';
         }
 
-        $order = array_values(array_filter([$session->tenant, $session->sessionable]));
+        // The tenant first (its rules have no memorable: they are not about any one
+        // subject), then the subject of this session. Grouping by morph alias alone would
+        // merge the two whenever they happen to share a class, and each rule would come
+        // out twice under the wrong heading.
+        $order = [];
+
+        if ($session->tenant) {
+            $order[] = [null, $session->tenant->getMorphClass()];
+        }
+
+        if ($session->sessionable) {
+            $order[] = [$session->sessionable, $session->sessionable->getMorphClass()];
+        }
+
         $blocks = [];
 
         // Shared before personal, and within each, the scopes in the order they were
         // given: the wider one first, so the narrower reads as a refinement of it.
         foreach (['everyone', 'actor'] as $level) {
-            foreach ($order as $memorable) {
-                $lines = static::linesFor($rules, $memorable->getMorphClass(), $level);
+            foreach ($order as [$memorable, $label]) {
+                $lines = static::linesFor($rules, $memorable, $level);
 
                 if ($lines->isEmpty()) {
                     continue;
                 }
 
-                $blocks[] = static::heading($level, $memorable->getMorphClass())
+                $blocks[] = static::heading($level, $label)
                     . "\n- " . $lines->implode("\n- ");
             }
         }
@@ -169,15 +203,21 @@ class Rule extends Model
     /**
      * Lines for.
      *
-     * @param Collection $rules
-     * @param string $morphClass
-     * @param string $level
+     * @param  Collection   $rules
+     * @param  Model|null   $memorable  The subject to pick out, or null for the rules that
+     *                                  belong to the tenant as a whole.
+     * @param  string       $level
      * @return Collection
      */
-    protected static function linesFor(Collection $rules, string $morphClass, string $level): Collection
+    protected static function linesFor(Collection $rules, ?Model $memorable, string $level): Collection
     {
+        $matches = $memorable
+            ? fn (self $rule) => $rule->memorable_type === $memorable->getMorphClass()
+                && (string) $rule->memorable_id === (string) $memorable->getKey()
+            : fn (self $rule) => $rule->memorable_id === null;
+
         return $rules
-            ->filter(fn (self $rule) => $rule->memorable_type === $morphClass
+            ->filter(fn (self $rule) => $matches($rule)
                 && ($level === 'everyone') === ($rule->memory_id === null))
             ->map(fn (self $rule) => $rule->content)
             ->values();

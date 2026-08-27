@@ -25,25 +25,78 @@ class MemoryTest extends TestCase
         $this->juan = Owner::create();
     }
 
-    private function remember(string $content, Owner $memorable, ?Owner $context = null): Memory
+    private function remember(string $content, Owner $tenant, ?Owner $context = null): Memory
     {
         return Memory::create([
-            'memorable_type' => 'firm',
-            'memorable_id' => $memorable->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $tenant->id,
             'memory_type' => $context ? 'firm' : null,
             'memory_id' => $context?->id,
             'content' => $content,
         ]);
     }
 
-    private function sessionFor(Owner $org, ?Owner $actor = null): ChatSession
+    private function sessionFor(Owner $org, ?Owner $actor = null, ?Owner $subject = null): ChatSession
     {
         return ChatSession::create([
             'tenant_type' => 'firm',
             'tenant_id' => $org->id,
             'actor_type' => $actor ? 'firm' : null,
             'actor_id' => $actor?->id,
+            'sessionable_type' => $subject ? 'firm' : null,
+            'sessionable_id' => $subject?->id,
         ]);
+    }
+
+    private function rememberAbout(string $content, Owner $tenant, Owner $subject): Memory
+    {
+        return Memory::create([
+            'tenant_type' => 'firm',
+            'tenant_id' => $tenant->id,
+            'memorable_type' => 'firm',
+            'memorable_id' => $subject->id,
+            'content' => $content,
+        ]);
+    }
+
+    public function test_a_memory_never_crosses_to_another_tenant(): void
+    {
+        // The one thing the tenant column is for. Two firms on the same install share the
+        // morph aliases and can share the ids behind them, so without it a memory written
+        // by one firm is reachable by the next.
+        $this->remember('We settle before trial', $this->org);
+
+        $seen = Memory::forSession($this->sessionFor($this->otherOrg, $this->maria))->pluck('content');
+
+        $this->assertNotContains('We settle before trial', $seen->all());
+    }
+
+    public function test_a_memory_about_one_matter_stays_out_of_another(): void
+    {
+        $matter = Owner::create();
+        $another = Owner::create();
+
+        $this->rememberAbout('The other side never answers', $this->org, $matter);
+
+        $here = Memory::forSession($this->sessionFor($this->org, $this->maria, $matter))->pluck('content');
+        $elsewhere = Memory::forSession($this->sessionFor($this->org, $this->maria, $another))->pluck('content');
+
+        $this->assertContains('The other side never answers', $here->all());
+        $this->assertNotContains('The other side never answers', $elsewhere->all());
+    }
+
+    public function test_a_session_on_a_matter_still_sees_what_is_true_of_the_firm(): void
+    {
+        // The narrow scope adds to the wide one, it does not replace it.
+        $matter = Owner::create();
+
+        $this->remember('The firm bills fortnightly', $this->org);
+        $this->rememberAbout('The other side never answers', $this->org, $matter);
+
+        $seen = Memory::forSession($this->sessionFor($this->org, $this->maria, $matter))->pluck('content');
+
+        $this->assertContains('The firm bills fortnightly', $seen->all());
+        $this->assertContains('The other side never answers', $seen->all());
     }
 
     public function test_shared_memories_reach_everyone_in_the_scope(): void

@@ -41,6 +41,8 @@ class Memory extends Model
     protected $table = 'laragents_memories';
 
     protected $fillable = [
+        'tenant_type',
+        'tenant_id',
         'memorable_type',
         'memorable_id',
         'memory_type',
@@ -59,6 +61,16 @@ class Memory extends Model
         'embedding' => 'array',
         'metadata' => 'array',
     ];
+
+    /**
+     * Tenant.
+     *
+     * @return MorphTo
+     */
+    public function tenant(): MorphTo
+    {
+        return $this->morphTo();
+    }
 
     /**
      * Memorable.
@@ -90,23 +102,40 @@ class Memory extends Model
     }
 
     /**
-     * @param  array<Model>  $memorables  The scopes in play, usually a session's owner
-     *                                    and subject. Nulls are ignored.
+     * Three axes, each answering something different: whose it is, what it is about,
+     * and who it applies to.
+     *
+     * @param  array<Model>  $memorables  What is in play, usually a session's subject.
+     *                                    Nulls are ignored.
      * @param  Model|null    $context     Who is asking. Null (an autonomous run with no
      *                                    human behind it) sees only the shared rows,
      *                                    which is the safe reading: with nobody to scope
      *                                    to, nothing personal applies.
+     * @param  Model|null    $tenant      Whose rows to look at. Also brings in the ones
+     *                                    with no memorable, which are about the tenant
+     *                                    itself.
      */
-    public static function scopedTo(array $memorables, ?Model $context = null): Builder
+    public static function scopedTo(array $memorables, ?Model $context = null, ?Model $tenant = null): Builder
     {
         $memorables = array_values(array_filter($memorables));
 
-        if (empty($memorables)) {
+        if (empty($memorables) && ! $tenant) {
             return static::query()->whereRaw('1 = 0');
         }
 
         return static::query()
-            ->where(function (Builder $query) use ($memorables) {
+            ->when($tenant, fn (Builder $query) => $query
+                ->where('tenant_type', $tenant->getMorphClass())
+                ->where('tenant_id', $tenant->getKey()))
+            ->where(function (Builder $query) use ($memorables, $tenant) {
+                // A null memorable is "about the tenant as a whole", so it is in play
+                // whenever a tenant is. Before the tenant was a column of its own, that
+                // was written by putting the organisation in the memorable, which meant
+                // writing it twice to say one thing.
+                if ($tenant) {
+                    $query->whereNull('memorable_id');
+                }
+
                 foreach ($memorables as $memorable) {
                     $query->orWhere(function (Builder $scope) use ($memorable) {
                         $scope->where('memorable_type', $memorable->getMorphClass())
@@ -129,7 +158,7 @@ class Memory extends Model
     /** The memories in play for a conversation: its owner, its subject, its actor. */
     public static function forSession(ChatSession $session): Builder
     {
-        return static::scopedTo([$session->tenant, $session->sessionable], $session->actor);
+        return static::scopedTo([$session->sessionable], $session->actor, $session->tenant);
     }
 
     /**
@@ -150,6 +179,7 @@ class Memory extends Model
     {
         $recent = fn () => static::forSession($session)
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->limit($limit)
             ->get();
 
@@ -163,6 +193,7 @@ class Memory extends Model
 
         $candidates = static::forSession($session)
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->limit($pool)
             ->get();
 
@@ -254,6 +285,7 @@ class Memory extends Model
     {
         $memories = static::forSession($session)
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->limit($limit)
             ->get();
 
@@ -263,7 +295,7 @@ class Memory extends Model
 
         $block = "## Remembered from earlier\n";
 
-        foreach (static::group($memories) as $heading => $lines) {
+        foreach (static::group($memories, $session->tenant?->getMorphClass()) as $heading => $lines) {
             $block .= "\n### {$heading}\n";
 
             foreach ($lines as $line) {
@@ -279,14 +311,17 @@ class Memory extends Model
      * "the firm works like this" from "this person prefers that". Flattened into one list
      * they blur, and it starts applying one person's preference to everybody.
      *
+     * @param  Collection    $memories
+     * @param  string|null   $tenant  Morph alias of the tenant, used to name the rows that
+     *                                belong to it as a whole rather than to any one subject.
      * @return array<string, array<string>>
      */
-    protected static function group(Collection $memories): array
+    protected static function group(Collection $memories, ?string $tenant = null): array
     {
         $grouped = [];
 
         foreach ($memories as $memory) {
-            $scope = $memory->memorable_type;
+            $scope = $memory->memorable_type ?? $tenant ?? 'scope';
             $level = $memory->memory_id === null ? 'everyone' : 'actor';
             $heading = $level === 'everyone'
                 ? "About this {$scope}"

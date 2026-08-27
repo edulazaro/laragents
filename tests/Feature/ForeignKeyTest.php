@@ -59,8 +59,8 @@ class ForeignKeyTest extends TestCase
         $org = Owner::create();
 
         $memory = Memory::create([
-            'memorable_type' => 'firm',
-            'memorable_id' => $org->id,
+            'tenant_type' => 'firm',
+            'tenant_id' => $org->id,
             'agent_id' => $agent->id,
             'content' => 'The bank replies slowly',
         ]);

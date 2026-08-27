@@ -175,6 +175,22 @@ class MemoryDistiller
     }
 
     /**
+     * Whether a scope the model picked is the tenant itself.
+     *
+     * @param  Model        $scope
+     * @param  ChatSession  $session
+     * @return bool
+     */
+    protected function isTenant(Model $scope, ChatSession $session): bool
+    {
+        $tenant = $session->tenant;
+
+        return $tenant
+            && $scope->getMorphClass() === $tenant->getMorphClass()
+            && (string) $scope->getKey() === (string) $tenant->getKey();
+    }
+
+    /**
      * System prompt.
      *
      * @param ChatSession $session
@@ -258,6 +274,7 @@ class MemoryDistiller
 
         $existing = Memory::forSession($session)
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->limit($limit)
             ->get(['memorable_type', 'memory_id', 'content']);
 
@@ -415,15 +432,28 @@ class MemoryDistiller
         // list of package words here would mean every app had to translate its own
         // vocabulary into ours, and anything it could not translate was dropped in
         // silence.
-        $memorable = $this->scopes($session)[$item['memorable'] ?? ''] ?? null;
+        $scope = $this->scopes($session)[$item['memorable'] ?? ''] ?? null;
 
-        if ($content === '' || ! $memorable) {
+        if ($content === '' || ! $scope) {
             return false;
         }
 
+        // The tenant is not a subject: something true of the firm as a whole is a memory
+        // with no memorable. The model still answers "firm" because that is the word it
+        // was given, and that word is the tenant's own morph alias.
+        $memorable = $this->isTenant($scope, $session) ? null : $scope;
+        $tenant = $session->tenant;
+
         $duplicate = Memory::query()
-            ->where('memorable_type', $memorable->getMorphClass())
-            ->where('memorable_id', $memorable->getKey())
+            ->when(
+                $tenant,
+                fn ($q) => $q->where('tenant_type', $tenant->getMorphClass())->where('tenant_id', $tenant->getKey()),
+            )
+            ->when(
+                $memorable,
+                fn ($q) => $q->where('memorable_type', $memorable->getMorphClass())->where('memorable_id', $memorable->getKey()),
+                fn ($q) => $q->whereNull('memorable_id'),
+            )
             ->where('content', $content)
             ->when(
                 $holder,
@@ -437,8 +467,10 @@ class MemoryDistiller
         }
 
         Memory::create([
-            'memorable_type' => $memorable->getMorphClass(),
-            'memorable_id' => $memorable->getKey(),
+            'tenant_type' => $tenant?->getMorphClass(),
+            'tenant_id' => $tenant?->getKey(),
+            'memorable_type' => $memorable?->getMorphClass(),
+            'memorable_id' => $memorable?->getKey(),
             'memory_type' => $holder?->getMorphClass(),
             'memory_id' => $holder?->getKey(),
             'created_by_type' => $session->actor?->getMorphClass(),
