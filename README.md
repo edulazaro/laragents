@@ -87,30 +87,36 @@ unable to tell them apart and the user reading the wrong message half the time.
 
 ## What is in it
 
-    AgentLoop               call, run tools, feed results back, repeat, with a cap
-    HistoryCompressor       summarises old turns once the replay outgrows its budget
-    Clients\OpenAiClient     chat completions, tool calling
-    Clients\AnthropicClient  the same interface, translating both dialects
-    Clients\ModelCapabilities which model accepts what, measured against the live APIs
-    Tools\ToolRegistry       registration and tag filtering
-    Tools\BaseTool           defaults for your own tools
-    Tools\ToolContext        whatever your tools need, carried opaquely
-    Models\ChatSession       owner (tenant), actor (who talks), subject (optional frame)
-    Models\ChatMessage       one turn, including the tool plumbing
-    Models\Memory            what to remember between conversations
-    MemoryDistiller         turns a finished exchange into memories
-    Models\Rule              hard directives, rendered at the top of the prompt
-    AgentTrigger            what makes an agent run: an event, or the clock
-    Jobs\RunAgentTask        one queued run
-    Clients\OpenAiEmbedder   optional, for semantic recall
-    Tools\SaveMemoryTool     lets the model remember on purpose
-    Tools\SearchMemoriesTool lets it look past what is already in the prompt
-    AgentRunner             runs one task: prompt, loop, record what happened
-    Models\Agent             a standing instruction to run the loop
-    Models\AgentTask         one run: why it fired, what came back
-    Models\AgentLog          what it did, step by step
-    Privacy\Redactor         optional PII redaction, via edulazaro/laranon
+    AgentLoop                  call, run tools, feed results back, repeat, with a cap
+    HistoryCompressor          summarises old turns once the replay outgrows its budget
+    MemoryDistiller            turns a finished exchange into memories
+    AgentRunner                runs one task: prompt, loop, record what happened
+    AgentTrigger               what makes an agent run: an event, or the clock
+    ModelCapabilities          which model accepts what, measured against the live APIs
 
+    Clients\OpenAiClient       chat completions, tool calling
+    Clients\AnthropicClient    the same interface, translating both dialects
+    Clients\FailoverClient     one provider, then the next, on a rate limit
+    Clients\OpenAiEmbedClient  optional, for semantic recall
+
+    Tools\Tool                 extend it, write two methods
+    Tools\ToolRegistry         registration and tag filtering
+    Tools\ToolContext          whatever your tools need, carried opaquely
+    Tools\SaveMemoryTool       lets the model remember on purpose
+    Tools\SearchMemoriesTool   lets it look past what is already in the prompt
+
+    Models\ChatSession         owner (tenant), actor (who talks), subject (optional frame)
+    Models\ChatMessage         one turn, including the tool plumbing
+    Models\Memory              what to remember between conversations
+    Models\Rule                hard directives, rendered at the top of the prompt
+    Models\Agent               a standing instruction to run the loop
+    Models\AgentTask           one run: why it fired, what came back
+    Models\AgentLog            what it did, step by step
+    Jobs\RunAgentTask          one queued run
+
+    Contracts\Redactor         optional PII redaction, via edulazaro/laranon
+    Concerns\ResolvesRedactor  whether a session gets redacted, in one place
+    Capabilities\Capability    things the provider does on its own side
 ## Memory
 
 Three axes, and keeping them apart is what makes it reusable:
@@ -351,7 +357,21 @@ informada". Surnames, ID numbers, IBANs, phones and emails are still tokenised. 
 Each session carries an `anonymize_pii` flag, on by default, so a user can opt one
 conversation out without changing the app-wide setting.
 
-**With the option on and laranon missing, the loop throws.** Not a warning: an app that
+**All three callers redact, not just the chat.** Three things here send a conversation to
+a model: the turn, `HistoryCompressor` summarising the older turns, and `MemoryDistiller`
+extracting what is worth remembering. The last two are the ones that get missed and the
+worse leak: summarising sends the whole transcript again, with a prompt that asks the
+model to keep names, figures and dates, and distilling sends the widest prompt in the
+package, the new turns plus the summary plus every memory already stored, in one call. A
+chat that redacts turn by turn and then hands the lot over the moment the history outgrows
+its budget is a promise broken rather than a promise never made, and it has no symptom.
+
+Which is why the decision of whether a session gets redacted lives in
+`Concerns\ResolvesRedactor` rather than inside the loop. It was a private method on
+`AgentLoop` until 1.1, and the other two did not redact for the plainest reason there is:
+there was nowhere to get the answer from.
+
+**With the option on and laranon missing, it throws.** Not a warning: an app that
 believes it anonymises and does not is worse than one that never claimed to, and a log
 line nobody reads is exactly how that goes unnoticed.
 
