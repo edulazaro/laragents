@@ -32,13 +32,17 @@ jobs:
         id: resolve
         run: |
           php -r '
-            $minLaravel = 11;
-
-            // The PHP floor comes from the package itself, so bumping
-            // composer.json is enough and this workflow never has to change.
+            // Both floors come from the package itself, so bumping composer.json is
+            // enough and this workflow never has to change. Hardcoding the Laravel one
+            // is how this broke: a package requiring >=12 was still being tested against
+            // 11, and its own dependencies refused to resolve there.
             $composer = json_decode(file_get_contents("composer.json"), true);
+
             preg_match("/(\d+\.\d+)/", $composer["require"]["php"], $m);
             $packageMinPhp = $m[1] ?? "8.2";
+
+            preg_match("/(\d+)/", $composer["require"]["laravel/framework"] ?? "10", $m);
+            $minLaravel = (int) ($m[1] ?? 10);
 
             // Every PHP branch still receiving releases, straight from php.net.
             // A new minor shows up here on its own, an EOL one drops off.

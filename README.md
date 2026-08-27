@@ -1,9 +1,18 @@
 ![Laragents](art/banner.png)
 
-# Laragents
+# Laragents - AI agents for Laravel
 
-Agentic LLM chat for Laravel: sessions, message history with automatic compression, a
-provider-agnostic tool-calling loop, and pluggable usage accounting.
+<p align="center">
+    <a href="https://github.com/edulazaro/laragents/actions/workflows/tests.yml"><img src="https://github.com/edulazaro/laragents/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+    <a href="https://packagist.org/packages/edulazaro/laragents"><img src="https://img.shields.io/packagist/v/edulazaro/laragents" alt="Latest Stable Version"></a>
+    <a href="https://packagist.org/packages/edulazaro/laragents"><img src="https://img.shields.io/packagist/dt/edulazaro/laragents" alt="Total Downloads"></a>
+    <a href="https://packagist.org/packages/edulazaro/laragents"><img src="https://img.shields.io/packagist/php-v/edulazaro/laragents" alt="PHP Version"></a>
+    <a href="https://github.com/edulazaro/laragents/blob/main/LICENSE.md"><img src="https://img.shields.io/packagist/l/edulazaro/laragents" alt="License"></a>
+</p>
+
+Chat sessions with automatic history compression, a provider-agnostic tool-calling loop,
+memories distilled from what was said, hard rules written by a person, and agents that run
+on a schedule or on your own events.
 
 Bring your own tools, your own models and your own credit system. The package owns the
 parts that are the same in every project and expensive to get right; it stays out of the
