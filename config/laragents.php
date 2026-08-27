@@ -26,6 +26,27 @@ return [
         // Tool results longer than this are truncated before going back to the model.
         'max_tool_result_chars' => 16000,
 
+        /*
+         * Stop a model that keeps searching and finding nothing.
+         *
+         * An empty result makes a model reformulate and try again, which is right once
+         * and a spiral after that: it will spend every iteration it has rather than say
+         * there is nothing there. After this many consecutive empty results, the loop
+         * adds a hint telling it to answer instead. 0 turns it off.
+         */
+        'empty_streak_after' => 2,
+
+        /*
+         * Which keys make a tool result a search. A result carrying any of these is
+         * judged; one carrying none of them says nothing either way and does not count.
+         * An error always counts as nothing found.
+         */
+        'result_keys' => ['items', 'results', 'matches', 'passages', 'data'],
+
+        // Appended to the tool's own hint, never replacing it. `:count` is the streak.
+        // Write it in the language your model answers in.
+        'empty_streak_hint' => null,
+
         // Budget for the replayed history, in estimated tokens. Above it, the older
         // messages get compressed into a summary.
         'max_history_tokens' => 6000,
@@ -50,7 +71,43 @@ return [
 
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
+
+        // Only read by OpenAiTranscribeClient, which nothing here calls: it is for an app
+        // that records meetings or voice notes.
+        'transcription_model' => 'whisper-1',
+
+        // Audio has no tokens. Providers bill it by the minute, so a minute is metered
+        // as if it were this many, and the rate table prices it under the model name
+        // like anything else. A convention, so speech and text share one allowance.
+        'transcription_tokens_per_minute' => 1000,
+
+        // Speech and images, neither of which anything here calls. Both are billed by
+        // something that is not a token (characters read out, images returned), so the
+        // recorder is given that number and your rate table prices it under the model
+        // name like anything else.
+        'speech_model' => 'tts-1',
+        'voice' => 'alloy',
+        'image_model' => 'gpt-image-1',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Failover
+    |--------------------------------------------------------------------------
+    | Where to go when a provider answers 429. A rate limit is the other side saying
+    | "not now", and a conversation in front of a person does not get to wait.
+    |
+    | Empty means no failover, which is the default: failing over means the reply comes
+    | from a model the caller did not choose, and that is a decision to make on purpose.
+    |
+    |     ['client' => AnthropicClient::class, 'model' => 'claude-sonnet-4-6'],
+    |
+    | Tried in order, and ONLY on a rate limit. A missing key or a malformed request is
+    | not going to go better elsewhere, and retrying those everywhere turns one failure
+    | into as many as you have providers, each one billed.
+    */
+
+    'failover' => [],
 
     'anthropic' => [
         'api_key' => env('ANTHROPIC_API_KEY'),

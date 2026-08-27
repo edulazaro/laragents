@@ -2,7 +2,9 @@
 
 namespace EduLazaro\Laragents\Clients;
 
+use EduLazaro\Laragents\Capabilities\Translator;
 use EduLazaro\Laragents\Contracts\ChatClient;
+use EduLazaro\Laragents\ModelCapabilities;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
 use EduLazaro\Laragents\Exceptions\PlanCreditsExhausted;
 use EduLazaro\Laragents\Exceptions\ProviderRateLimited;
@@ -13,6 +15,13 @@ use Illuminate\Support\Facades\Log;
 
 class OpenAiClient implements ChatClient
 {
+    /**
+     * @param UsageRecorder $usage
+     * @param ?string $apiKey
+     * @param string $baseUrl
+     * @param int $timeout
+     * @return void
+     */
     public function __construct(
         protected UsageRecorder $usage,
         protected ?string $apiKey = null,
@@ -22,6 +31,23 @@ class OpenAiClient implements ChatClient
         $this->apiKey ??= config('laragents.openai.api_key');
     }
 
+    /**
+     * Chat.
+     *
+     * @param array $messages
+     * @param string $model
+     * @param ?Model $owner
+     * @param ?Model $actor
+     * @param string $operation
+     * @param ?Model $subject
+     * @param ?float $temperature
+     * @param ?int $maxTokens
+     * @param ?array $tools
+     * @param ?string $toolChoice
+     * @param ?array $schema
+     * @param array $capabilities
+     * @return Response
+     */
     public function chat(
         array $messages,
         string $model,
@@ -33,6 +59,8 @@ class OpenAiClient implements ChatClient
         ?int $maxTokens = null,
         ?array $tools = null,
         ?string $toolChoice = null,
+        ?array $schema = null,
+        array $capabilities = [],
     ): Response {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('OpenAI API key not configured.');
@@ -67,6 +95,25 @@ class OpenAiClient implements ChatClient
         if ($maxTokens !== null && ModelCapabilities::supportsOutputCap($model)) {
             $body['max_completion_tokens'] = $maxTokens;
         }
+
+        // Asking for JSON in the prompt is begging; this is the provider guaranteeing
+        // it. `strict` also makes an enum in the schema binding, which is what you
+        // actually wanted every time you set a low temperature on a classifier.
+        if ($schema) {
+            $body['response_format'] = [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => $schema['name'] ?? 'response',
+                    'strict' => $schema['strict'] ?? true,
+                    'schema' => $schema['schema'] ?? $schema,
+                ],
+            ];
+        }
+
+        // The provider's own tools sit in the same list as yours: it decides which to
+        // reach for, runs its own without telling you, and hands yours back to run.
+        $native = Translator::forOpenAi($capabilities);
+        $tools = $native === [] ? $tools : [...$native, ...($tools ?? [])];
 
         if ($tools) {
             $body['tools'] = $tools;
@@ -113,6 +160,23 @@ class OpenAiClient implements ChatClient
             ]);
         }
 
+        // Where it says it got this, when it searched. OpenAI hangs them off the message
+        // as annotations rather than off each sentence.
+        $citations = [];
+
+        foreach ($message['annotations'] ?? [] as $annotation) {
+            if (($annotation['type'] ?? '') !== 'url_citation') {
+                continue;
+            }
+
+            $citation = $annotation['url_citation'] ?? [];
+
+            $citations[] = array_filter([
+                'title' => $citation['title'] ?? null,
+                'url' => $citation['url'] ?? null,
+            ]);
+        }
+
         $result = new Response(
             content: $content,
             inputTokens: $usage['prompt_tokens'] ?? 0,
@@ -120,6 +184,13 @@ class OpenAiClient implements ChatClient
             model: $model,
             toolCalls: $message['tool_calls'] ?? [],
             finishReason: $finishReason,
+
+            // Reasoning models bill for thinking and, on this endpoint, do not hand the
+            // thinking back: the tokens show up in usage and the text does not. Captured
+            // when a provider does return it, empty when it does not, and either way the
+            // tokens are already counted in completion_tokens.
+            reasoning: (string) ($message['reasoning'] ?? ''),
+            citations: $citations,
         );
 
         if ($owner) {

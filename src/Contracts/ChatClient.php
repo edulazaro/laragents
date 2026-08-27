@@ -39,5 +39,7 @@ interface ChatClient
         ?int $maxTokens = null,
         ?array $tools = null,
         ?string $toolChoice = null,
+        ?array $schema = null,
+        array $capabilities = [],
     ): Response;
 }

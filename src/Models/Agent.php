@@ -53,6 +53,11 @@ class Agent extends Model
         'last_run_at' => 'datetime',
     ];
 
+    /**
+     * Booted.
+     *
+     * @return void
+     */
     protected static function booted(): void
     {
         static::creating(function (self $agent) {
@@ -60,21 +65,41 @@ class Agent extends Model
         });
     }
 
+    /**
+     * Tenant.
+     *
+     * @return MorphTo
+     */
     public function tenant(): MorphTo
     {
         return $this->morphTo();
     }
 
+    /**
+     * Created by.
+     *
+     * @return MorphTo
+     */
     public function createdBy(): MorphTo
     {
         return $this->morphTo('created_by');
     }
 
+    /**
+     * Tasks.
+     *
+     * @return HasMany
+     */
     public function tasks(): HasMany
     {
         return $this->hasMany(AgentTask::class);
     }
 
+    /**
+     * Logs.
+     *
+     * @return HasMany
+     */
     public function logs(): HasMany
     {
         return $this->hasMany(AgentLog::class);
@@ -93,6 +118,11 @@ class Agent extends Model
         return $this->status === static::activeStatus();
     }
 
+    /**
+     * Active status.
+     *
+     * @return string
+     */
     public static function activeStatus(): string
     {
         return (string) config('laragents.agents.active_status', 'active');
@@ -107,6 +137,11 @@ class Agent extends Model
         return $this->config[$key] ?? $default;
     }
 
+    /**
+     * Max iterations.
+     *
+     * @return int
+     */
     public function maxIterations(): int
     {
         return (int) $this->setting('max_iterations', 10);

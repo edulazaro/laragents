@@ -12,19 +12,34 @@ use EduLazaro\Laragents\Models\Memory;
  * to always carry. This is for when the model needs something older than that, and would
  * otherwise say it does not know rather than go and look.
  */
-class SearchMemoriesTool extends BaseTool
+class SearchMemoriesTool extends Tool
 {
+    /**
+     * Its name.
+     *
+     * @return string
+     */
     public function name(): string
     {
         return 'search_memories';
     }
 
+    /**
+     * Description.
+     *
+     * @return string
+     */
     public function description(): string
     {
         return 'Search what you remember from earlier conversations. Use it when something '
             . 'may have been discussed before but is not in what you already have.';
     }
 
+    /**
+     * Parameters.
+     *
+     * @return array
+     */
     public function parameters(): array
     {
         return [
@@ -37,11 +52,23 @@ class SearchMemoriesTool extends BaseTool
         ];
     }
 
+    /**
+     * Tags.
+     *
+     * @return array
+     */
     public function tags(): array
     {
         return ['*'];
     }
 
+    /**
+     * Execute.
+     *
+     * @param array $args
+     * @param ToolContext $context
+     * @return array
+     */
     public function execute(array $args, ToolContext $context): array
     {
         $session = $context->get('session');

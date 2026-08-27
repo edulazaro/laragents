@@ -2,7 +2,7 @@
 
 namespace EduLazaro\Laragents\Usage;
 
-use EduLazaro\Larameter\CreditMeter;
+use EduLazaro\Larameter\UsageTracker;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
 use Illuminate\Database\Eloquent\Model;
 
@@ -18,10 +18,26 @@ use Illuminate\Database\Eloquent\Model;
  */
 class LarameterRecorder implements UsageRecorder
 {
+    /**
+     * @param UsageTracker $meter
+     * @return void
+     */
     public function __construct(
-        protected CreditMeter $meter,
+        protected UsageTracker $meter,
     ) {}
 
+    /**
+     * Record.
+     *
+     * @param Model $owner
+     * @param ?Model $actor
+     * @param string $operation
+     * @param string $model
+     * @param int $inputTokens
+     * @param int $outputTokens
+     * @param ?Model $subject
+     * @return void
+     */
     public function record(
         Model $owner,
         ?Model $actor,
@@ -46,7 +62,7 @@ class LarameterRecorder implements UsageRecorder
     }
 
     /**
-     * Memoised: the loop asks before every iteration. See CreditMeter for why it
+     * Memoised: the loop asks before every iteration. See UsageTracker for why it
      * deliberately does not notice spending mid-turn.
      */
     public function hasCredits(Model $owner): bool

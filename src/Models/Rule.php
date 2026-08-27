@@ -49,11 +49,21 @@ class Rule extends Model
         'metadata' => 'array',
     ];
 
+    /**
+     * Memorable.
+     *
+     * @return MorphTo
+     */
     public function memorable(): MorphTo
     {
         return $this->morphTo();
     }
 
+    /**
+     * Holder.
+     *
+     * @return MorphTo
+     */
     public function holder(): MorphTo
     {
         return $this->morphTo('memory');
@@ -104,6 +114,12 @@ class Rule extends Model
             });
     }
 
+    /**
+     * For session.
+     *
+     * @param ChatSession $session
+     * @return Builder
+     */
     public static function forSession(ChatSession $session): Builder
     {
         return static::scopedTo([$session->tenant, $session->sessionable], $session->actor);
@@ -150,6 +166,14 @@ class Rule extends Model
         return $blocks === [] ? '' : implode("\n\n", $blocks) . "\n";
     }
 
+    /**
+     * Lines for.
+     *
+     * @param Collection $rules
+     * @param string $morphClass
+     * @param string $level
+     * @return Collection
+     */
     protected static function linesFor(Collection $rules, string $morphClass, string $level): Collection
     {
         return $rules

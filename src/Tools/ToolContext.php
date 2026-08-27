@@ -20,23 +20,53 @@ namespace EduLazaro\Laragents\Tools;
  */
 final class ToolContext
 {
+    /**
+     * @param array $items
+     * @return void
+     */
     public function __construct(private array $items = []) {}
 
+    /**
+     * Make.
+     *
+     * @param array $items
+     * @return self
+     */
     public static function make(array $items = []): self
     {
         return new self($items);
     }
 
+    /**
+     * With.
+     *
+     * @param string $key
+     * @param mixed $value
+     * @return self
+     */
     public function with(string $key, mixed $value): self
     {
         return new self([...$this->items, $key => $value]);
     }
 
+    /**
+     * Get.
+     *
+     * @param string $key
+     * @param mixed $default
+     * @return mixed
+     */
     public function get(string $key, mixed $default = null): mixed
     {
         return $this->items[$key] ?? $default;
     }
 
+    /**
+     * Has.
+     *
+     * @param string $key
+     * @return bool
+     */
     public function has(string $key): bool
     {
         return array_key_exists($key, $this->items);
@@ -52,6 +82,11 @@ final class ToolContext
         return $this->items[$key];
     }
 
+    /**
+     * All.
+     *
+     * @return array
+     */
     public function all(): array
     {
         return $this->items;

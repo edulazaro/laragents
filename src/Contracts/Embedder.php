@@ -29,4 +29,26 @@ interface Embedder
         string $operation = 'embedding',
         ?Model $subject = null,
     ): array;
+
+    /**
+     * The same, for many texts at once.
+     *
+     * One request rather than N. Providers price embeddings per token either way, so
+     * what this saves is round trips, and that is the difference between indexing a
+     * thousand documents in a minute and in an hour.
+     *
+     * Returns the vectors in the order the texts came in, whatever order the provider
+     * answers in.
+     *
+     * @param  array<int, string>  $texts
+     * @param  Model|null  $owner  Who pays. Null is platform cost and is not metered.
+     * @return array<int, array<int, float>>
+     */
+    public function embedBatch(
+        array $texts,
+        ?Model $owner = null,
+        ?Model $actor = null,
+        string $operation = 'embedding',
+        ?Model $subject = null,
+    ): array;
 }

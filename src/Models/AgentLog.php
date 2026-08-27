@@ -31,6 +31,11 @@ class AgentLog extends Model
         'created_at' => 'datetime',
     ];
 
+    /**
+     * Booted.
+     *
+     * @return void
+     */
     protected static function booted(): void
     {
         static::creating(function (self $log) {
@@ -38,11 +43,21 @@ class AgentLog extends Model
         });
     }
 
+    /**
+     * Task.
+     *
+     * @return BelongsTo
+     */
     public function task(): BelongsTo
     {
         return $this->belongsTo(AgentTask::class, 'agent_task_id');
     }
 
+    /**
+     * Agent.
+     *
+     * @return BelongsTo
+     */
     public function agent(): BelongsTo
     {
         return $this->belongsTo(Agent::class);

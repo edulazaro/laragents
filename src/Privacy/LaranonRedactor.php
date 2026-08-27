@@ -2,11 +2,14 @@
 
 namespace EduLazaro\Laragents\Privacy;
 
+use EduLazaro\Laragents\Contracts\Redactor as RedactorContract;
 use RuntimeException;
 
 /**
- * Swaps personal data for markers on the way out and puts it back on the way in, using
- * edulazaro/laranon.
+ * The redactor laragents ships with: edulazaro/laranon.
+ *
+ * A default, not the only option. Anonymising is policy, so bind your own implementation
+ * of the contract and this file is never loaded.
  *
  * The ordering is the whole point, and getting it wrong fails quietly:
  *
@@ -20,10 +23,15 @@ use RuntimeException;
  * A fresh laranon session per turn: the mapping is deterministic, so the same person gets
  * the same marker within a turn and nothing has to survive between them.
  */
-class Redactor
+class LaranonRedactor implements RedactorContract
 {
     private mixed $session = null;
 
+    /**
+     * @param array $except
+     * @param array $keys
+     * @return void
+     */
     public function __construct(
         private array $except = ['person'],
         private array $keys = ['content', 'tool_calls.*.function.arguments'],
@@ -51,16 +59,34 @@ class Redactor
         $this->session = $anonymizer->newSession();
     }
 
+    /**
+     * Outbound.
+     *
+     * @param array $messages
+     * @return array
+     */
     public function outbound(array $messages): array
     {
         return $this->session ? $this->session->anonymize($messages, $this->keys) : $messages;
     }
 
+    /**
+     * Inbound.
+     *
+     * @param string $content
+     * @return string
+     */
     public function inbound(string $content): string
     {
         return $this->session ? $this->session->restore($content) : $content;
     }
 
+    /**
+     * Inbound tool calls.
+     *
+     * @param array $toolCalls
+     * @return array
+     */
     public function inboundToolCalls(array $toolCalls): array
     {
         if (! $this->session || empty($toolCalls)) {

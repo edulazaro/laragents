@@ -18,6 +18,12 @@ class RunDueAgentsCommand extends Command
 
     protected $description = 'Dispatch a task for every agent whose schedule has come round';
 
+    /**
+     * Run it.
+     *
+     * @param AgentTrigger $trigger
+     * @return int
+     */
     public function handle(AgentTrigger $trigger): int
     {
         $dispatched = $trigger->due();

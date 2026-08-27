@@ -56,6 +56,11 @@ class ChatSession extends Model
         'metadata' => 'array',
     ];
 
+    /**
+     * Booted.
+     *
+     * @return void
+     */
     protected static function booted(): void
     {
         static::creating(function (self $session) {
@@ -63,6 +68,11 @@ class ChatSession extends Model
         });
     }
 
+    /**
+     * Tenant.
+     *
+     * @return MorphTo
+     */
     public function tenant(): MorphTo
     {
         return $this->morphTo();
@@ -74,21 +84,44 @@ class ChatSession extends Model
         return $this->morphTo();
     }
 
+    /**
+     * Sessionable.
+     *
+     * @return MorphTo
+     */
     public function sessionable(): MorphTo
     {
         return $this->morphTo();
     }
 
+    /**
+     * Messages.
+     *
+     * @return HasMany
+     */
     public function messages(): HasMany
     {
         return $this->hasMany(ChatMessage::class, 'session_id');
     }
 
+    /**
+     * Add tokens.
+     *
+     * @param int $tokens
+     * @return void
+     */
     public function addTokens(int $tokens): void
     {
         $this->increment('total_tokens', $tokens);
     }
 
+    /**
+     * Update summary.
+     *
+     * @param string $summary
+     * @param int $untilMessageId
+     * @return void
+     */
     public function updateSummary(string $summary, int $untilMessageId): void
     {
         $this->update([

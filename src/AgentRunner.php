@@ -29,6 +29,11 @@ use Illuminate\Database\Eloquent\Model;
  */
 class AgentRunner
 {
+    /**
+     * @param ChatClient $client
+     * @param ToolRegistry $registry
+     * @return void
+     */
     public function __construct(
         protected ChatClient $client,
         protected ToolRegistry $registry,
@@ -118,6 +123,14 @@ class AgentRunner
         return $today > $max ? "Daily task limit reached ({$max})." : null;
     }
 
+    /**
+     * Execute.
+     *
+     * @param Agent $agent
+     * @param AgentTask $task
+     * @param ToolContext $context
+     * @return Response
+     */
     protected function execute(Agent $agent, AgentTask $task, ToolContext $context): Response
     {
         // A session, so an agent run is stored and readable exactly like a conversation.
@@ -183,6 +196,15 @@ class AgentRunner
         return $model;
     }
 
+    /**
+     * Log.
+     *
+     * @param AgentTask $task
+     * @param string $level
+     * @param string $message
+     * @param array $metadata
+     * @return void
+     */
     protected function log(AgentTask $task, string $level, string $message, array $metadata = []): void
     {
         AgentLog::create([

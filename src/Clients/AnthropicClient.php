@@ -2,7 +2,9 @@
 
 namespace EduLazaro\Laragents\Clients;
 
+use EduLazaro\Laragents\Capabilities\Translator;
 use EduLazaro\Laragents\Contracts\ChatClient;
+use EduLazaro\Laragents\ModelCapabilities;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
 use EduLazaro\Laragents\Exceptions\PlanCreditsExhausted;
 use EduLazaro\Laragents\Exceptions\ProviderRateLimited;
@@ -33,6 +35,15 @@ class AnthropicClient implements ChatClient
     /** The Messages API REQUIRES max_tokens, so there has to be one. */
     private const DEFAULT_MAX_TOKENS = 2000;
 
+    /**
+     * @param UsageRecorder $usage
+     * @param ?string $apiKey
+     * @param string $baseUrl
+     * @param string $version
+     * @param bool $promptCaching
+     * @param int $timeout
+     * @return void
+     */
     public function __construct(
         protected UsageRecorder $usage,
         protected ?string $apiKey = null,
@@ -44,6 +55,23 @@ class AnthropicClient implements ChatClient
         $this->apiKey ??= config('laragents.anthropic.api_key');
     }
 
+    /**
+     * Chat.
+     *
+     * @param array $messages
+     * @param string $model
+     * @param ?Model $owner
+     * @param ?Model $actor
+     * @param string $operation
+     * @param ?Model $subject
+     * @param ?float $temperature
+     * @param ?int $maxTokens
+     * @param ?array $tools
+     * @param ?string $toolChoice
+     * @param ?array $schema
+     * @param array $capabilities
+     * @return Response
+     */
     public function chat(
         array $messages,
         string $model,
@@ -55,6 +83,8 @@ class AnthropicClient implements ChatClient
         ?int $maxTokens = null,
         ?array $tools = null,
         ?string $toolChoice = null,
+        ?array $schema = null,
+        array $capabilities = [],
     ): Response {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('Anthropic API key not configured.');
@@ -85,6 +115,25 @@ class AnthropicClient implements ChatClient
             'max_tokens' => $maxTokens ?? self::DEFAULT_MAX_TOKENS,
             'messages' => $anthropicMessages,
         ];
+
+        // Anthropic has no response_format. Its documented way to guarantee a shape is
+        // to declare one tool whose input schema IS that shape and leave the model no
+        // choice but to call it; the arguments then come back already validated.
+        //
+        // Which means a schema and a tool loop are mutually exclusive here: the model
+        // is being forced into one call, so it cannot reach for anything else. The
+        // caller asked for an answer in a shape, not for a conversation.
+        if ($schema) {
+            $name = $schema['name'] ?? 'response';
+
+            $body['tools'] = [[
+                'name' => $name,
+                'description' => 'Return the answer in this shape.',
+                'input_schema' => $schema['schema'] ?? $schema,
+            ]];
+
+            $body['tool_choice'] = ['type' => 'tool', 'name' => $name];
+        }
 
         // Per-model, not per-provider. See ModelCapabilities: Opus 4.8 rejects it and
         // Sonnet 4.6 accepts it, measured.
@@ -117,8 +166,13 @@ class AnthropicClient implements ChatClient
             }
         }
 
-        if (! empty($tools)) {
-            $translatedTools = $this->translateTools($tools);
+        // Their own server tools: the model runs these on its side and you never see the
+        // call. Versioned by date, and there is no file search, so asking for one drops
+        // it rather than faking it.
+        $native = Translator::forAnthropic($capabilities);
+
+        if (! empty($tools) || $native !== []) {
+            $translatedTools = [...$native, ...$this->translateTools($tools ?? [])];
 
             // No marker in the system prompt? Then cache at least the tool block, which
             // is a big stable chunk rendered first. cache_control on the last tool caches
@@ -157,12 +211,37 @@ class AnthropicClient implements ChatClient
         // Content blocks: text + tool_use -> a content string + tool calls in OpenAI shape.
         $content = '';
         $toolCalls = [];
+        $reasoning = '';
+        $citations = [];
 
         foreach ($data['content'] ?? [] as $block) {
             $type = $block['type'] ?? '';
 
             if ($type === 'text') {
                 $content .= $block['text'] ?? '';
+
+                // Only ever present when the model searched. One answering from memory
+                // cites nothing, and one offering a citation unprompted invented it.
+                foreach ($block['citations'] ?? [] as $citation) {
+                    $citations[] = array_filter([
+                        'title' => $citation['title'] ?? null,
+                        'url' => $citation['url'] ?? null,
+                        'text' => $citation['cited_text'] ?? null,
+                    ]);
+                }
+            } elseif ($type === 'thinking' || $type === 'redacted_thinking') {
+                // Extended thinking. Kept out of content: it is not the answer, and
+                // showing it as if it were reads as the model talking to itself.
+                //
+                // A redacted block has been withheld by the provider and arrives with
+                // no text, so an empty reasoning does not mean it did not think: it
+                // means it did not say. The tokens were billed either way.
+                $reasoning .= $block['thinking'] ?? '';
+            } elseif ($type === 'tool_use' && $schema) {
+                // The forced call IS the answer. Handed back as text, so a caller
+                // decoding a schema-backed reply reads response->content either way,
+                // whichever provider served it.
+                $content = json_encode($block['input'] ?? new \stdClass(), JSON_UNESCAPED_UNICODE);
             } elseif ($type === 'tool_use') {
                 $toolCalls[] = [
                     'id' => $block['id'] ?? '',
@@ -208,6 +287,8 @@ class AnthropicClient implements ChatClient
             finishReason: $stopReason,
             cacheCreationTokens: $cacheCreation,
             cacheReadTokens: $cacheRead,
+            reasoning: $reasoning,
+            citations: $citations,
         );
 
         if ($owner) {

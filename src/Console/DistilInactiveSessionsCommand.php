@@ -24,6 +24,11 @@ class DistilInactiveSessionsCommand extends Command
 
     protected $description = 'Distil memories from conversations that have gone quiet';
 
+    /**
+     * Run it.
+     *
+     * @return int
+     */
     public function handle(): int
     {
         $minutes = (int) config('laragents.memory.inactive_after_minutes', 30);

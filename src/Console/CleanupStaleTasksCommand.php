@@ -18,6 +18,11 @@ class CleanupStaleTasksCommand extends Command
 
     protected $description = 'Mark orphaned running tasks as failed';
 
+    /**
+     * Run it.
+     *
+     * @return int
+     */
     public function handle(): int
     {
         $minutes = (int) config('laragents.agents.stale_after_minutes', 30);

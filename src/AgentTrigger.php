@@ -93,6 +93,16 @@ class AgentTrigger
         return $dispatched;
     }
 
+    /**
+     * Dispatch.
+     *
+     * @param Agent $agent
+     * @param string $triggerType
+     * @param ?Model $subject
+     * @param array $input
+     * @param ?string $event
+     * @return void
+     */
     protected function dispatch(
         Agent $agent,
         string $triggerType,

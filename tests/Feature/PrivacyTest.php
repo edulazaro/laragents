@@ -8,6 +8,7 @@ use EduLazaro\Laragents\Contracts\UsageRecorder;
 use EduLazaro\Laragents\Models\ChatMessage;
 use EduLazaro\Laragents\Models\ChatSession;
 use EduLazaro\Laragents\Tests\Fixtures\Owner;
+use EduLazaro\Laragents\Contracts\Redactor as RedactorContract;
 use EduLazaro\Laragents\Tests\TestCase;
 use EduLazaro\Laragents\Tools\ToolContext;
 use EduLazaro\Laragents\Tools\ToolRegistry;
@@ -140,5 +141,49 @@ class PrivacyTest extends TestCase
             '12345678Z',
             ChatMessage::where('session_id', $session->id)->where('role', 'assistant')->first()->content,
         );
+    }
+
+    public function test_an_app_can_bring_its_own_redactor(): void
+    {
+        // Anonymising is policy, not plumbing. A clinic cares about patient numbers, a
+        // payroll app about bank accounts and not names at all. Binding the contract is
+        // how an app says so, and laranon never gets a look in.
+        config()->set('laragents.privacy.enabled', true);
+
+        app()->bind(RedactorContract::class, fn () => new class implements RedactorContract {
+            public function beginTurn(): void {}
+
+            public function outbound(array $messages): array
+            {
+                return array_map(fn ($m) => [...$m, 'content' => str_replace('secreto', '[X]', $m['content'] ?? '')], $messages);
+            }
+
+            public function inbound(string $text): string
+            {
+                return str_replace('[X]', 'secreto', $text);
+            }
+
+            public function inboundToolCalls(array $toolCalls): array
+            {
+                return $toolCalls;
+            }
+        });
+
+        Http::fake(['api.openai.com/*' => Http::response([
+            'choices' => [['message' => ['content' => 'dijiste [X]'], 'finish_reason' => 'stop']],
+            'usage' => [],
+        ], 200)]);
+
+        $session = ChatSession::create(['tenant_type' => 'firm', 'tenant_id' => Owner::create()->id]);
+
+        $response = (new AgentLoop(
+            new OpenAiClient($this->app->make(UsageRecorder::class)),
+            new ToolRegistry(),
+        ))->run([['role' => 'user', 'content' => 'esto es secreto']], 'gpt-4o', $session, ToolContext::make(), []);
+
+        $sent = Http::recorded()[0][0]->data();
+
+        $this->assertSame('esto es [X]', $sent['messages'][0]['content'], 'it left redacted');
+        $this->assertSame('dijiste secreto', $response->content, 'and came back restored');
     }
 }

@@ -1,3 +1,5 @@
+![Laragents](art/banner.png)
+
 # Laragents
 
 Agentic LLM chat for Laravel: sessions, message history with automatic compression, a
@@ -384,6 +386,19 @@ breaks on someone else's setup.
 the package: with `config:cache` Laravel skips loading `.env` entirely, so an `env()` call
 outside a config file quietly returns its default from then on.
 
+## Sponsors
+
+Laragents is supported by the following sponsors. Thank you for keeping it growing:
+
+<p>
+  <a href="https://kenodo.com"><img src="art/logo-kenodo.png" width="24" alt="Kenodo"></a>&nbsp;<a href="https://kenodo.com">Kenodo</a>&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://andorradev.com"><img src="art/logo-andorradev.png" width="24" alt="AndorraDev"></a>&nbsp;<a href="https://andorradev.com">AndorraDev</a>
+</p>
+
+## Author
+
+Created by [Edu Lazaro](https://edulazaro.com)
+
 ## License
 
-MIT.
+Laragents is open-sourced software licensed under the [MIT license](LICENSE.md).

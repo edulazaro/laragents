@@ -29,10 +29,10 @@ class LarameterIntegrationTest extends TestCase
 
         $app['config']->set('laragents.usage_recorder', 'larameter');
         $app['config']->set('larameter.windows', ['week' => ['days' => 7, 'anchor' => 'fixed']]);
-        $app['config']->set('larameter.plans', ['free' => ['credits' => ['week' => 1000]]]);
+        $app['config']->set('larameter.plans', ['free' => ['credits_monthly' => 1000]]);
         $app['config']->set('larameter.default_plan', 'free');
         $app['config']->set('larameter.rates', [
-            'gpt-4o' => ['in' => 2.50, 'out' => 10.00, 'per' => 1_000_000],
+            'gpt-4o' => ['input' => 25_000, 'output' => 100_000],
         ]);
     }
 
@@ -78,8 +78,7 @@ class LarameterIntegrationTest extends TestCase
         $this->assertSame('gpt-4o', $record->operation, 'the model is the priced operation');
         $this->assertSame('token', $record->unit);
         $this->assertSame(1_000_000, $record->quantity_in);
-        // $2.50 + $10.00 = $12.50 at 10000 credits per unit of cost.
-        $this->assertSame('12.500000', $record->cost);
+        // 25,000 credits per million in and 100,000 per million out.
         $this->assertSame(125000, $record->credits);
         $this->assertSame('chat', $record->metadata['operation'], 'the feature, beside the model');
     }

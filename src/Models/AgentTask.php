@@ -45,6 +45,11 @@ class AgentTask extends Model
         'completed_at' => 'datetime',
     ];
 
+    /**
+     * Agent.
+     *
+     * @return BelongsTo
+     */
     public function agent(): BelongsTo
     {
         return $this->belongsTo(Agent::class);
@@ -56,16 +61,35 @@ class AgentTask extends Model
         return $this->morphTo();
     }
 
+    /**
+     * Logs.
+     *
+     * @return HasMany
+     */
     public function logs(): HasMany
     {
         return $this->hasMany(AgentLog::class);
     }
 
+    /**
+     * Mark running.
+     *
+     * @return void
+     */
     public function markRunning(): void
     {
         $this->update(['status' => 'running', 'started_at' => now()]);
     }
 
+    /**
+     * Mark completed.
+     *
+     * @param array $output
+     * @param int $inputTokens
+     * @param int $outputTokens
+     * @param int $credits
+     * @return void
+     */
     public function markCompleted(array $output, int $inputTokens = 0, int $outputTokens = 0, int $credits = 0): void
     {
         $this->update([

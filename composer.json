@@ -1,17 +1,22 @@
 {
     "name": "edulazaro/laragents",
-    "description": "Agentic LLM chat for Laravel: sessions, message history with automatic compression, a provider-agnostic tool-calling loop, and pluggable usage accounting. Bring your own tools, your own models and your own credit system.",
+    "description": "AI agents for Laravel: chat sessions with automatic history compression, a provider-agnostic tool-calling loop, memories distilled from what was said, hard rules written by a person, and agents that run on a schedule or on your own events. Bring your own tools, your own models and your own credit system. Redaction, usage accounting and the provider itself are all pluggable.",
     "license": "MIT",
     "type": "library",
     "keywords": [
         "laravel",
-        "llm",
         "ai",
+        "llm",
         "agent",
+        "agents",
         "chat",
         "tool-calling",
+        "memory",
+        "rag",
         "openai",
-        "anthropic"
+        "anthropic",
+        "claude",
+        "gpt"
     ],
     "require": {
         "php": ">=8.2",
@@ -45,21 +50,12 @@
         "phpunit/phpunit": "^11.0",
         "orchestra/testbench": "^10.0",
         "edulazaro/laranon": "^1.2",
-        "edulazaro/larameter": "dev-main"
+        "edulazaro/larameter": "^1.0"
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true,
     "suggest": {
         "edulazaro/laranon": "Required if you turn on laragents.privacy.enabled: swaps personal data for markers before the prompt reaches the provider and restores it on the way back.",
         "edulazaro/larameter": "Set laragents.usage_recorder to 'larameter' and what the loop spends is metered against your plans, with no adapter to write."
-    },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../larameter",
-            "options": {
-                "symlink": true
-            }
-        }
-    ]
+    }
 }

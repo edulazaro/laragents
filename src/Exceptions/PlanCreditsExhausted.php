@@ -19,6 +19,11 @@ use Exception;
  */
 class PlanCreditsExhausted extends Exception
 {
+    /**
+     * @param ?int $ownerId
+     * @param ?string $operation
+     * @return void
+     */
     public function __construct(
         public readonly ?int $ownerId = null,
         public readonly ?string $operation = null,

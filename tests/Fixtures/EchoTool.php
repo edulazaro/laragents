@@ -2,10 +2,10 @@
 
 namespace EduLazaro\Laragents\Tests\Fixtures;
 
-use EduLazaro\Laragents\Tools\BaseTool;
+use EduLazaro\Laragents\Tools\Tool;
 use EduLazaro\Laragents\Tools\ToolContext;
 
-class EchoTool extends BaseTool
+class EchoTool extends Tool
 {
     public array $calls = [];
 

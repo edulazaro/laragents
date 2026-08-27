@@ -2,7 +2,7 @@
 
 namespace EduLazaro\Laragents\Clients;
 
-use EduLazaro\Laragents\Contracts\Embedder;
+use EduLazaro\Laragents\Contracts\Speaker;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
 use EduLazaro\Laragents\Exceptions\PlanCreditsExhausted;
 use EduLazaro\Laragents\Exceptions\ProviderRateLimited;
@@ -10,42 +10,60 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class OpenAiEmbedder implements Embedder
+class OpenAiSpeakClient implements Speaker
 {
+    /**
+     * @param UsageRecorder $usage
+     * @param ?string $apiKey
+     * @param string $baseUrl
+     * @param int $timeout
+     * @return void
+     */
     public function __construct(
         protected UsageRecorder $usage,
         protected ?string $apiKey = null,
         protected string $baseUrl = 'https://api.openai.com/v1',
-        protected int $timeout = 30,
+        protected int $timeout = 120,
     ) {
         $this->apiKey ??= config('laragents.openai.api_key');
     }
 
-    public function embed(
+    /**
+     * Read a piece of text aloud.
+     *
+     * @param string $text
+     * @param string|null $voice
+     * @param Model|null $owner
+     * @param Model|null $actor
+     * @param string $operation
+     * @param Model|null $subject
+     * @return string
+     */
+    public function speak(
         string $text,
+        ?string $voice = null,
         ?Model $owner = null,
         ?Model $actor = null,
-        string $operation = 'embedding',
+        string $operation = 'speech',
         ?Model $subject = null,
-    ): array {
+    ): string {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('OpenAI API key not configured.');
         }
 
-        // Same net as the chat client. Embedding is cheap per call and relentless in
-        // volume, which is exactly the shape of cost that runs an account dry unnoticed.
         if ($owner && ! $this->usage->hasCredits($owner)) {
             throw new PlanCreditsExhausted($owner->getKey(), $operation);
         }
 
-        $model = (string) config('laragents.memory.embedding_model', 'text-embedding-3-small');
+        $model = (string) config('laragents.openai.speech_model', 'tts-1');
 
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $this->apiKey,
             'Content-Type' => 'application/json',
-        ])->timeout($this->timeout)->post($this->baseUrl . '/embeddings', [
+        ])->timeout($this->timeout)->post($this->baseUrl . '/audio/speech', [
             'model' => $model,
             'input' => $text,
+            'voice' => $voice ?? config('laragents.openai.voice', 'alloy'),
         ]);
 
         if ($response->status() === 429) {
@@ -53,33 +71,20 @@ class OpenAiEmbedder implements Embedder
         }
 
         if (! $response->successful()) {
-            Log::error('OpenAI embeddings error', [
+            Log::error('OpenAI speech error', [
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
 
-            throw new \RuntimeException('OpenAI embeddings error: ' . $response->status());
-        }
-
-        $data = $response->json();
-        $vector = $data['data'][0]['embedding'] ?? null;
-
-        if (! is_array($vector)) {
-            throw new \RuntimeException('OpenAI embeddings returned no vector.');
+            throw new \RuntimeException('OpenAI speech error: ' . $response->status());
         }
 
         if ($owner) {
-            $this->usage->record(
-                $owner,
-                $actor,
-                $operation,
-                $model,
-                (int) ($data['usage']['prompt_tokens'] ?? 0),
-                0,
-                $subject,
-            );
+            // Billed per character, and no usage comes back to count, so the input is
+            // metered as what it is: the characters that were read out.
+            $this->usage->record($owner, $actor, $operation, $model, mb_strlen($text), 0, $subject);
         }
 
-        return array_map('floatval', $vector);
+        return $response->body();
     }
 }

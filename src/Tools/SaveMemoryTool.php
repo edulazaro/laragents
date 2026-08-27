@@ -15,13 +15,23 @@ use Illuminate\Support\Facades\Log;
  * when they expect it to have happened, and would otherwise wait for a background job
  * they know nothing about.
  */
-class SaveMemoryTool extends BaseTool
+class SaveMemoryTool extends Tool
 {
+    /**
+     * Its name.
+     *
+     * @return string
+     */
     public function name(): string
     {
         return 'save_memory';
     }
 
+    /**
+     * Description.
+     *
+     * @return string
+     */
     public function description(): string
     {
         return 'Remember something for later conversations. Use it when the user asks you '
@@ -29,6 +39,11 @@ class SaveMemoryTool extends BaseTool
             . 'not use it for things that only matter in this conversation.';
     }
 
+    /**
+     * Parameters.
+     *
+     * @return array
+     */
     public function parameters(): array
     {
         // No enum of valid scopes here, and it is not an oversight: the schema is built
@@ -59,16 +74,33 @@ class SaveMemoryTool extends BaseTool
         ];
     }
 
+    /**
+     * Is action.
+     *
+     * @return bool
+     */
     public function isAction(): bool
     {
         return true;
     }
 
+    /**
+     * Tags.
+     *
+     * @return array
+     */
     public function tags(): array
     {
         return ['*'];
     }
 
+    /**
+     * Execute.
+     *
+     * @param array $args
+     * @param ToolContext $context
+     * @return array
+     */
     public function execute(array $args, ToolContext $context): array
     {
         $session = $context->get('session');

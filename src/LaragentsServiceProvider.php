@@ -3,14 +3,24 @@
 namespace EduLazaro\Laragents;
 
 use EduLazaro\Laragents\Clients\AnthropicClient;
+use EduLazaro\Laragents\Clients\FailoverClient;
 use EduLazaro\Laragents\Clients\OpenAiClient;
-use EduLazaro\Laragents\Clients\OpenAiEmbedder;
+use EduLazaro\Laragents\Clients\OpenAiEmbedClient;
+use EduLazaro\Laragents\Clients\OpenAiImageClient;
+use EduLazaro\Laragents\Clients\OpenAiSpeakClient;
+use EduLazaro\Laragents\Clients\OpenAiTranscribeClient;
 use EduLazaro\Laragents\Console\CleanupStaleTasksCommand;
 use EduLazaro\Laragents\Console\DistilInactiveSessionsCommand;
 use EduLazaro\Laragents\Console\RunDueAgentsCommand;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Contracts\Embedder;
+use EduLazaro\Laragents\Contracts\Illustrator;
+use EduLazaro\Laragents\Contracts\Redactor;
+use EduLazaro\Laragents\Contracts\Speaker;
+use EduLazaro\Laragents\Contracts\Transcriber;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
+use EduLazaro\Laragents\Privacy\LaranonRedactor;
+use EduLazaro\Laragents\Skills\SkillRegistry;
 use EduLazaro\Laragents\Tools\SaveMemoryTool;
 use EduLazaro\Laragents\Tools\SearchMemoriesTool;
 use EduLazaro\Laragents\Tools\ToolRegistry;
@@ -22,6 +32,11 @@ use Illuminate\Support\ServiceProvider;
 
 class LaragentsServiceProvider extends ServiceProvider
 {
+    /**
+     * Register the package's bindings.
+     *
+     * @return void
+     */
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/laragents.php', 'laragents');
@@ -40,7 +55,7 @@ class LaragentsServiceProvider extends ServiceProvider
 
             // Shorthand for the adapter that ships with this package.
             if ($recorder === 'larameter') {
-                if (! class_exists(\EduLazaro\Larameter\CreditMeter::class)) {
+                if (! class_exists(\EduLazaro\Larameter\UsageTracker::class)) {
                     throw new \RuntimeException(
                         "laragents.usage_recorder is set to 'larameter' but "
                         . 'edulazaro/larameter is not installed. Either '
@@ -77,7 +92,19 @@ class LaragentsServiceProvider extends ServiceProvider
         // Resolving the interface gives you OpenAI. Which provider a given conversation
         // uses is a runtime decision (the user's mode, whether a key is configured), so
         // it belongs in your executor, not in a container binding.
-        $this->app->bind(ChatClient::class, OpenAiClient::class);
+        $this->app->bind(ChatClient::class, function ($app) {
+            $primary = $app->make(OpenAiClient::class);
+            $fallbacks = (array) config('laragents.failover', []);
+
+            if ($fallbacks === []) {
+                return $primary;
+            }
+
+            return new FailoverClient($primary, array_map(fn (array $entry) => [
+                'client' => $app->make($entry['client']),
+                'model' => $entry['model'],
+            ], $fallbacks));
+        });
 
         // Always bound, and never conditioned on config here. A binding registered only
         // when a config flag is set looks tidy and is a trap: register() runs before the
@@ -87,10 +114,39 @@ class LaragentsServiceProvider extends ServiceProvider
         // What actually gates the spending is the callers, which check
         // laragents.memory.embeddings before asking for a vector. Embedding costs money
         // on every memory written, so it stays off until you say otherwise.
-        $this->app->bind(Embedder::class, OpenAiEmbedder::class);
-        $this->app->bind(OpenAiEmbedder::class, fn ($app) => new OpenAiEmbedder($app->make(UsageRecorder::class)));
+        $this->app->bind(Embedder::class, OpenAiEmbedClient::class);
+        $this->app->bind(OpenAiEmbedClient::class, fn ($app) => new OpenAiEmbedClient($app->make(UsageRecorder::class)));
+
+        // Same arrangement, and nothing in this package asks for it: transcription is
+        // here for the app that records meetings or voice notes, so it does not write
+        // the provider plumbing again.
+        $this->app->bind(Transcriber::class, OpenAiTranscribeClient::class);
+        $this->app->bind(OpenAiTranscribeClient::class, fn ($app) => new OpenAiTranscribeClient($app->make(UsageRecorder::class)));
+
+        $this->app->bind(Speaker::class, OpenAiSpeakClient::class);
+        $this->app->bind(OpenAiSpeakClient::class, fn ($app) => new OpenAiSpeakClient($app->make(UsageRecorder::class)));
+
+        $this->app->bind(Illustrator::class, OpenAiImageClient::class);
+        $this->app->bind(OpenAiImageClient::class, fn ($app) => new OpenAiImageClient($app->make(UsageRecorder::class)));
+
+        // The skill catalogue. A singleton like the tool registry, and empty until an
+        // app registers something: the package ships no skills, only the shape of one.
+        $this->app->singleton(SkillRegistry::class);
+
+        // The redactor laragents ships with. Bound, not hard-wired: anonymising is
+        // policy, so an app with its own rules binds its own implementation and never
+        // installs laranon at all.
+        $this->app->bind(Redactor::class, fn () => new LaranonRedactor(
+            except: (array) config('laragents.privacy.except', ['person']),
+            keys: (array) config('laragents.privacy.keys', ['content', 'tool_calls.*.function.arguments']),
+        ));
     }
 
+    /**
+     * Bootstrap the package.
+     *
+     * @return void
+     */
     public function boot(): void
     {
         $this->registerEventTriggers();

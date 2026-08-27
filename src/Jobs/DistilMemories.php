@@ -23,6 +23,11 @@ class DistilMemories implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    /**
+     * @param int $sessionId
+     * @param ?int $minMessages
+     * @return void
+     */
     public function __construct(
         public int $sessionId,
         public ?int $minMessages = null,
@@ -30,6 +35,12 @@ class DistilMemories implements ShouldQueue
         $this->onQueue(config('laragents.memory.queue', 'default'));
     }
 
+    /**
+     * Run it.
+     *
+     * @param MemoryDistiller $distiller
+     * @return void
+     */
     public function handle(MemoryDistiller $distiller): void
     {
         $session = ChatSession::find($this->sessionId);

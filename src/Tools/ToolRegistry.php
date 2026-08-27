@@ -2,7 +2,8 @@
 
 namespace EduLazaro\Laragents\Tools;
 
-use EduLazaro\Laragents\Contracts\Tool;
+use EduLazaro\Laragents\Attributes\Tags as TagsAttribute;
+use EduLazaro\Laragents\Tools\Tool;
 
 /**
  * The tools available to a run, filtered by tags.
@@ -18,6 +19,12 @@ class ToolRegistry
     /** @var array<string, Tool> */
     protected array $tools = [];
 
+    /**
+     * Register the package's bindings.
+     *
+     * @param Tool $tool
+     * @return static
+     */
     public function register(Tool $tool): static
     {
         $this->tools[$tool->name()] = $tool;
@@ -25,6 +32,12 @@ class ToolRegistry
         return $this;
     }
 
+    /**
+     * Get.
+     *
+     * @param string $name
+     * @return ?Tool
+     */
     public function get(string $name): ?Tool
     {
         return $this->tools[$name] ?? null;
@@ -49,7 +62,7 @@ class ToolRegistry
 
         if ($tags !== null) {
             $tools = array_filter($tools, function (Tool $tool) use ($tags) {
-                $own = $tool->tags();
+                $own = $this->tagsOf($tool);
 
                 return in_array('*', $own, true) || array_intersect($own, $tags) !== [];
             });
@@ -79,5 +92,28 @@ class ToolRegistry
             ],
             $this->for($tags, $whitelist),
         );
+    }
+
+    /**
+     * A tool's tags: its own method first, then the attribute, then everything.
+     *
+     * Both, in that order, the way the framework resolves an agent's options: the
+     * attribute is the ordinary way to say it, and the method is there for a tool whose
+     * tags depend on something it can only know at runtime.
+     *
+     * @param Tool $tool
+     * @return array<int, string>
+     */
+    protected function tagsOf(Tool $tool): array
+    {
+        $own = $tool->tags();
+
+        if ($own !== [] && $own !== ['*']) {
+            return $own;
+        }
+
+        $attributes = (new \ReflectionClass($tool))->getAttributes(TagsAttribute::class);
+
+        return $attributes === [] ? ['*'] : $attributes[0]->newInstance()->tags;
     }
 }

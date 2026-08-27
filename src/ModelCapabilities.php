@@ -1,6 +1,6 @@
 <?php
 
-namespace EduLazaro\Laragents\Clients;
+namespace EduLazaro\Laragents;
 
 /**
  * Which parameters each model actually accepts.
@@ -40,6 +40,12 @@ final class ModelCapabilities
     /** Models that reject `temperature` without being an OpenAI reasoning model. */
     private const NO_TEMPERATURE = ['claude-opus-4-8'];
 
+    /**
+     * Is reasoning.
+     *
+     * @param string $model
+     * @return bool
+     */
     public static function isReasoning(string $model): bool
     {
         foreach (self::REASONING_EXCEPTIONS as $exception) {
@@ -57,6 +63,12 @@ final class ModelCapabilities
         return false;
     }
 
+    /**
+     * Supports temperature.
+     *
+     * @param string $model
+     * @return bool
+     */
     public static function supportsTemperature(string $model): bool
     {
         foreach (self::NO_TEMPERATURE as $blocked) {

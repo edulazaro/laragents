@@ -16,6 +16,11 @@ namespace EduLazaro\Laragents\Concerns;
  */
 trait SharesMemories
 {
+    /**
+     * Shares memories.
+     *
+     * @return bool
+     */
     public function sharesMemories(): bool
     {
         $chosen = $this->getAttribute('share_memories');

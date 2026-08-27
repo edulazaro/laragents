@@ -26,6 +26,12 @@ use Illuminate\Support\Facades\Log;
  */
 class HistoryCompressor
 {
+    /**
+     * @param ChatClient $client
+     * @param string $model
+     * @param string $language
+     * @return void
+     */
     public function __construct(
         protected ChatClient $client,
         /** Cheap model: this is summarisation, not the conversation. */
@@ -130,6 +136,11 @@ class HistoryCompressor
         return (int) ceil(mb_strlen($text) / 4);
     }
 
+    /**
+     * Summary heading.
+     *
+     * @return string
+     */
     protected function summaryHeading(): string
     {
         return "Summary of the earlier conversation:\n";

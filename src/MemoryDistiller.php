@@ -26,6 +26,10 @@ use Illuminate\Support\Facades\Log;
  */
 class MemoryDistiller
 {
+    /**
+     * @param ChatClient $client
+     * @return void
+     */
     public function __construct(
         protected ChatClient $client,
     ) {}
@@ -57,6 +61,13 @@ class MemoryDistiller
         }
     }
 
+    /**
+     * Run.
+     *
+     * @param ChatSession $session
+     * @param ?int $minMessages
+     * @return int
+     */
     protected function run(ChatSession $session, ?int $minMessages): int
     {
         $session->refresh();
@@ -131,6 +142,7 @@ class MemoryDistiller
             actor: $session->actor,
             operation: 'memory_distillation',
             subject: $session->sessionable,
+            schema: $this->schema($session),
         );
 
         return $this->parse($response->content);
@@ -162,6 +174,12 @@ class MemoryDistiller
         return $scopes;
     }
 
+    /**
+     * System prompt.
+     *
+     * @param ChatSession $session
+     * @return string
+     */
     protected function systemPrompt(ChatSession $session): string
     {
         $configured = config('laragents.memory.prompt');
@@ -227,6 +245,13 @@ class MemoryDistiller
         PROMPT;
     }
 
+    /**
+     * User prompt.
+     *
+     * @param ChatSession $session
+     * @param Collection $messages
+     * @return string
+     */
     protected function userPrompt(ChatSession $session, Collection $messages): string
     {
         $limit = (int) config('laragents.memory.existing_context', 30);
@@ -258,13 +283,52 @@ class MemoryDistiller
     }
 
     /**
+     * The shape the reply has to have, enforced by the provider.
+     *
+     * `memorable` is an enum of the scopes this session actually has, so the model
+     * cannot invent one and have it dropped later without a word: it either names a
+     * real scope or the provider refuses the answer. That is the thing a low
+     * temperature was always being asked to do and could never promise.
+     *
+     * @param ChatSession $session
+     * @return array<string, mixed>
+     */
+    protected function schema(ChatSession $session): array
+    {
+        $memory = [
+            'type' => 'object',
+            'properties' => [
+                'memorable' => ['type' => 'string', 'enum' => array_keys($this->scopes($session))],
+                'content' => ['type' => 'string'],
+                'category' => ['type' => 'string'],
+            ],
+            'required' => ['memorable', 'content', 'category'],
+            'additionalProperties' => false,
+        ];
+
+        return [
+            'name' => 'memories',
+            'schema' => [
+                'type' => 'object',
+                'properties' => [
+                    'everyone' => ['type' => 'array', 'items' => $memory],
+                    'actor' => ['type' => 'array', 'items' => $memory],
+                ],
+                'required' => ['everyone', 'actor'],
+                'additionalProperties' => false,
+            ],
+        ];
+    }
+
+    /**
      * Pull the two lists out of the reply.
      *
-     * Tolerant of code fences and stray prose around the object, because the reply is
-     * asked for in the prompt rather than guaranteed by the API. When the client learns
-     * response_format with a schema, this becomes unnecessary and the failure mode stops
-     * being "sometimes the whole window is lost to a stray quote".
+     * Still tolerant of code fences and stray prose, and that is not belt and braces:
+     * the schema binds a provider that honours it, and this is what happens with one
+     * that does not. Losing the object costs a model call and seals the window, so the
+     * conversation is never read again, silently.
      *
+     * @param string $raw
      * @return array{everyone: array, actor: array}
      */
     protected function parse(string $raw): array
@@ -331,6 +395,14 @@ class MemoryDistiller
         return $actor->sharesMemories();
     }
 
+    /**
+     * Insert.
+     *
+     * @param mixed $item
+     * @param ChatSession $session
+     * @param ?Model $holder
+     * @return bool
+     */
     protected function insert(mixed $item, ChatSession $session, ?Model $holder): bool
     {
         if (! is_array($item)) {

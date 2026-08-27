@@ -2,12 +2,16 @@
 
 namespace EduLazaro\Laragents;
 
+use EduLazaro\Laragents\Capabilities\Capability;
 use EduLazaro\Laragents\Contracts\ChatClient;
+use EduLazaro\Laragents\Events\InvokingTool;
+use EduLazaro\Laragents\Events\ToolInvoked;
 use EduLazaro\Laragents\Models\ChatMessage;
 use EduLazaro\Laragents\Models\ChatSession;
-use EduLazaro\Laragents\Privacy\Redactor;
+use EduLazaro\Laragents\Contracts\Redactor;
 use EduLazaro\Laragents\Tools\ToolContext;
 use EduLazaro\Laragents\Tools\ToolRegistry;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -27,6 +31,14 @@ class AgentLoop
     protected int $outputTokens = 0;
     protected ?Redactor $redactor = null;
 
+    /** @var int Consecutive tool results that found nothing, within this run. */
+    protected int $emptyStreak = 0;
+
+    /**
+     * @param ChatClient $client
+     * @param ToolRegistry $registry
+     * @return void
+     */
     public function __construct(
         protected ChatClient $client,
         protected ToolRegistry $registry,
@@ -34,7 +46,12 @@ class AgentLoop
 
     /**
      * @param  array  $messages  Conversation so far, OpenAI shape, system prompt included.
-     * @param  array  $tools     Tool definitions, from ToolRegistry::definitions().
+     * @param  array  $tools     Tool definitions, from ToolRegistry::definitions(). Yours:
+     *                           the model asks, this loop runs them.
+     * @param  array<int, Capability>  $capabilities  Things the provider does on its own
+     *                           side. Switched on here and never seen again: no call
+     *                           reaches your server, so they miss the redactor, the usage
+     *                           recorder and the empty-streak guard.
      */
     public function run(
         array $messages,
@@ -43,18 +60,20 @@ class AgentLoop
         ToolContext $context,
         array $tools = [],
         bool $persist = true,
+        array $capabilities = [],
     ): Response {
-        // The session goes in the context here and not at every call site, so a tool that
-        // needs to know which conversation it is in can always ask. Leaving it to callers
-        // means the memory tools work in agent runs and quietly fail in the chat, or the
-        // other way round, depending on who remembered.
-        $context = $context->with('session', $session);
+        // The session and the model go in here and not at every call site, so a tool that
+        // needs to know which conversation it is in, or which tier it was called on, can
+        // always ask. Leaving it to callers means the memory tools work in agent runs and
+        // quietly fail in the chat, or the other way round, depending on who remembered.
+        $context = $context->with('session', $session)->with('model', $model);
 
         $maxIterations = (int) config('laragents.chat.max_tool_iterations', 7);
         $maxTokens = config('laragents.chat.max_response_tokens');
 
         $iteration = 0;
         $last = null;
+        $this->emptyStreak = 0;
 
         $this->redactor = $this->redactorFor($session);
 
@@ -73,6 +92,7 @@ class AgentLoop
                 maxTokens: $maxTokens,
                 tools: $tools ?: null,
                 toolChoice: $tools ? 'auto' : null,
+                capabilities: $capabilities,
             );
 
             $this->inputTokens += $response->inputTokens;
@@ -118,8 +138,22 @@ class AgentLoop
                 $callId = $call['id'] ?? '';
                 $args = json_decode($call['function']['arguments'] ?? '{}', true) ?? [];
 
-                $result = $this->dispatch($name, $this->arguments($name, $args, $context), $context);
+                $arguments = $this->arguments($name, $args, $context);
+
+                Event::dispatch(new InvokingTool($name, $arguments, $session));
+                $startedAt = microtime(true);
+
+                $result = $this->dispatch($name, $arguments, $context);
                 $result = $this->afterTool($name, $result, $context);
+                $result = $this->watchEmptyStreak($result);
+
+                Event::dispatch(new ToolInvoked(
+                    $name,
+                    $arguments,
+                    $result,
+                    microtime(true) - $startedAt,
+                    $session,
+                ));
 
                 $encoded = $this->encodeResult($result);
 
@@ -157,6 +191,14 @@ class AgentLoop
         );
     }
 
+    /**
+     * Dispatch.
+     *
+     * @param string $name
+     * @param array $args
+     * @param ToolContext $context
+     * @return array
+     */
     protected function dispatch(string $name, array $args, ToolContext $context): array
     {
         $tool = $this->registry->get($name);
@@ -195,6 +237,15 @@ class AgentLoop
         return $encoded;
     }
 
+    /**
+     * Store.
+     *
+     * @param ChatSession $session
+     * @param string $role
+     * @param ?string $content
+     * @param array $metadata
+     * @return void
+     */
     protected function store(ChatSession $session, string $role, ?string $content, array $metadata = []): void
     {
         ChatMessage::create([
@@ -223,12 +274,11 @@ class AgentLoop
             return null;
         }
 
-        // Throws when laranon is missing. See Redactor: a warning nobody reads is worse
-        // than a failure, because the app goes on believing it anonymises.
-        return new Redactor(
-            except: (array) config('laragents.privacy.except', ['person']),
-            keys: (array) config('laragents.privacy.keys', ['content', 'tool_calls.*.function.arguments']),
-        );
+        // From the container, so an app with its own idea of what personal data is binds
+        // its own and this never reaches laranon. The shipped one throws when laranon is
+        // missing, on purpose: an app that believes it anonymises and does not is worse
+        // than one that never claimed to.
+        return app(Redactor::class);
     }
 
     /** Messages on their way to the provider. Override to add your own transform. */
@@ -259,5 +309,98 @@ class AgentLoop
     protected function afterTool(string $tool, array $result, ToolContext $context): array
     {
         return $result;
+    }
+
+    /**
+     * Tell the model to stop when its searches keep finding nothing.
+     *
+     * A model that gets an empty result reformulates and tries again, which is the
+     * right instinct once and a spiral after that: it will spend every iteration it is
+     * given rather than tell the user there is nothing there. The iteration cap ends
+     * the spiral, but ends it with `max_iterations` and no answer, which is the worst
+     * of both.
+     *
+     * @param array<string, mixed> $result
+     * @return array<string, mixed>
+     */
+    protected function watchEmptyStreak(array $result): array
+    {
+        $after = (int) config('laragents.chat.empty_streak_after', 2);
+
+        if ($after <= 0) {
+            return $result;
+        }
+
+        $verdict = $this->foundSomething($result);
+
+        // Null means the result is not a collection, so it says nothing either way: a
+        // tool that files a document neither found nor failed to find. Those must not
+        // reset the streak, or one bookkeeping call between two dead searches hides it.
+        if ($verdict === null) {
+            return $result;
+        }
+
+        if ($verdict === true) {
+            $this->emptyStreak = 0;
+
+            return $result;
+        }
+
+        $this->emptyStreak++;
+
+        if ($this->emptyStreak < $after) {
+            return $result;
+        }
+
+        $result['_stop_searching'] = true;
+
+        // Appended, never replaced. The tool's own hint usually explains HOW to
+        // reformulate, and dropping it leaves the model with an order to stop and no
+        // idea what it was doing wrong.
+        // Coalesced, not defaulted: the published config ships the key set to null, and
+        // config() hands back a null that exists rather than falling back.
+        $hint = config('laragents.chat.empty_streak_hint')
+            ?: 'That is :count searches in a row with no results. If you have run out of '
+                . 'reasonable reformulations, tell the user you found nothing rather than '
+                . 'searching again.';
+
+        $result['_hint'] = trim(
+            ($result['_hint'] ?? '') . ' ' . str_replace(':count', (string) $this->emptyStreak, $hint),
+        );
+
+        return $result;
+    }
+
+    /**
+     * Whether a tool result found anything: true, false, or null when it cannot say.
+     *
+     * A package cannot know what your tools return, so it reads the shape: a result
+     * carrying any of the configured collection keys is a search, and a search with
+     * every one of them empty found nothing. An error counts as nothing found, since a
+     * model retrying a failing tool is the same spiral.
+     *
+     * @param array<string, mixed> $result
+     * @return bool|null
+     */
+    protected function foundSomething(array $result): ?bool
+    {
+        if (! empty($result['error'])) {
+            return false;
+        }
+
+        $keys = (array) config('laragents.chat.result_keys', ['items', 'results', 'matches', 'passages', 'data']);
+        $present = array_intersect_key($result, array_flip($keys));
+
+        if ($present === []) {
+            return null;
+        }
+
+        foreach ($present as $value) {
+            if (! empty($value)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

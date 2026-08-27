@@ -24,11 +24,21 @@ class RunAgentTask implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
+    /**
+     * @param int $taskId
+     * @return void
+     */
     public function __construct(public int $taskId)
     {
         $this->onQueue(config('laragents.agents.queue', 'default'));
     }
 
+    /**
+     * Run it.
+     *
+     * @param AgentRunner $runner
+     * @return void
+     */
     public function handle(AgentRunner $runner): void
     {
         $task = AgentTask::find($this->taskId);

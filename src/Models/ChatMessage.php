@@ -27,31 +27,61 @@ class ChatMessage extends Model
         'metadata' => 'array',
     ];
 
+    /**
+     * Session.
+     *
+     * @return BelongsTo
+     */
     public function session(): BelongsTo
     {
         return $this->belongsTo(ChatSession::class, 'session_id');
     }
 
+    /**
+     * Is user.
+     *
+     * @return bool
+     */
     public function isUser(): bool
     {
         return $this->role === 'user';
     }
 
+    /**
+     * Is assistant.
+     *
+     * @return bool
+     */
     public function isAssistant(): bool
     {
         return $this->role === 'assistant';
     }
 
+    /**
+     * Is tool call.
+     *
+     * @return bool
+     */
     public function isToolCall(): bool
     {
         return $this->role === 'assistant' && ! empty($this->metadata['tool_calls']);
     }
 
+    /**
+     * Is tool result.
+     *
+     * @return bool
+     */
     public function isToolResult(): bool
     {
         return $this->role === 'tool';
     }
 
+    /**
+     * Tool name.
+     *
+     * @return ?string
+     */
     public function toolName(): ?string
     {
         return $this->metadata['tool_name'] ?? null;

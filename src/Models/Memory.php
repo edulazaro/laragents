@@ -60,11 +60,21 @@ class Memory extends Model
         'metadata' => 'array',
     ];
 
+    /**
+     * Memorable.
+     *
+     * @return MorphTo
+     */
     public function memorable(): MorphTo
     {
         return $this->morphTo();
     }
 
+    /**
+     * Holder.
+     *
+     * @return MorphTo
+     */
     public function holder(): MorphTo
     {
         return $this->morphTo('memory');
