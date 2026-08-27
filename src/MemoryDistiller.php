@@ -2,6 +2,7 @@
 
 namespace EduLazaro\Laragents;
 
+use EduLazaro\Laragents\Concerns\ResolvesRedactor;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Contracts\Embedder;
 use EduLazaro\Laragents\Models\ChatMessage;
@@ -26,6 +27,8 @@ use Illuminate\Support\Facades\Log;
  */
 class MemoryDistiller
 {
+    use ResolvesRedactor;
+
     /**
      * @param ChatClient $client
      * @return void
@@ -132,11 +135,19 @@ class MemoryDistiller
     /** @return array{everyone: array, actor: array} */
     protected function ask(ChatSession $session, Collection $messages): array
     {
+        $payload = [
+            ['role' => 'system', 'content' => $this->systemPrompt($session)],
+            ['role' => 'user', 'content' => $this->userPrompt($session, $messages)],
+        ];
+
+        // The widest prompt in the package: the new turns, the summary of everything
+        // before them, and the memories already stored from past conversations, all in
+        // the same call.
+        $redactor = $this->redactorFor($session);
+        $redactor?->beginTurn();
+
         $response = $this->client->chat(
-            messages: [
-                ['role' => 'system', 'content' => $this->systemPrompt($session)],
-                ['role' => 'user', 'content' => $this->userPrompt($session, $messages)],
-            ],
+            messages: $redactor ? $redactor->outbound($payload) : $payload,
             model: (string) config('laragents.memory.model', 'gpt-4o-mini'),
             owner: $session->tenant,
             actor: $session->actor,
@@ -145,7 +156,33 @@ class MemoryDistiller
             schema: $this->schema($session),
         );
 
-        return $this->parse($response->content);
+        $parsed = $this->parse($response->content);
+
+        if (! $redactor) {
+            return $parsed;
+        }
+
+        // Restored AFTER decoding, not before. The markers sit inside JSON string values,
+        // so putting a name back while it is still a JSON document risks a quote in the
+        // value breaking it; once decoded there is no JSON left to break, and a quote is
+        // just a character.
+        //
+        // And restored it must be: the mapping is a first-seen counter that dies with
+        // this call, so a memory saved with a marker in it could never be read back. Next
+        // time round «AP_1» is somebody else.
+        foreach (['everyone', 'actor'] as $level) {
+            foreach ($parsed[$level] as $index => $item) {
+                // `memorable` is left alone: it is one of your morph aliases, matched
+                // against the session's scopes, and never carries personal data.
+                foreach (['content', 'category'] as $field) {
+                    if (isset($item[$field]) && is_string($item[$field])) {
+                        $parsed[$level][$index][$field] = $redactor->inbound($item[$field]);
+                    }
+                }
+            }
+        }
+
+        return $parsed;
     }
 
     /**

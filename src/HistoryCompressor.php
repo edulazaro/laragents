@@ -2,6 +2,7 @@
 
 namespace EduLazaro\Laragents;
 
+use EduLazaro\Laragents\Concerns\ResolvesRedactor;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Jobs\DistilMemories;
 use EduLazaro\Laragents\Models\ChatSession;
@@ -26,6 +27,8 @@ use Illuminate\Support\Facades\Log;
  */
 class HistoryCompressor
 {
+    use ResolvesRedactor;
+
     /**
      * @param ChatClient $client
      * @param string $model
@@ -176,12 +179,21 @@ class HistoryCompressor
             . "New messages to fold in:\n{$transcript}\n"
             . "Write a concise summary in {$this->language}, 500 words at most.";
 
+        $messages = [
+            ['role' => 'system', 'content' => 'You summarise conversations precisely and concisely.'],
+            ['role' => 'user', 'content' => $prompt],
+        ];
+
+        // Summarising is sending the conversation to a provider again, and the prompt
+        // above asks the model to keep the names. Without this, a session the user marked
+        // private is redacted turn by turn and then handed over whole the moment it grows
+        // past its budget, which is a promise broken rather than a promise never made.
+        $redactor = $this->redactorFor($session);
+        $redactor?->beginTurn();
+
         try {
             $response = $this->client->chat(
-                messages: [
-                    ['role' => 'system', 'content' => 'You summarise conversations precisely and concisely.'],
-                    ['role' => 'user', 'content' => $prompt],
-                ],
+                messages: $redactor ? $redactor->outbound($messages) : $messages,
                 model: $this->model,
                 owner: $session->tenant,
                 actor: $session->actor,
@@ -189,7 +201,11 @@ class HistoryCompressor
                 subject: $session,
             );
 
-            return $response->content;
+            // Restored BEFORE it is returned, because the caller stores it. The mapping
+            // is a first-seen counter that dies with this call, so a summary saved with
+            // the markers still in it could never be read back: next turn's «AP_1» is a
+            // different person, and there is nothing left to undo it with.
+            return $redactor ? $redactor->inbound($response->content) : $response->content;
         } catch (\Throwable $e) {
             Log::error('laragents: history compression failed', [
                 'session_id' => $session->id,

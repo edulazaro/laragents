@@ -3,6 +3,7 @@
 namespace EduLazaro\Laragents;
 
 use EduLazaro\Laragents\Capabilities\Capability;
+use EduLazaro\Laragents\Concerns\ResolvesRedactor;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Events\InvokingTool;
 use EduLazaro\Laragents\Events\ToolInvoked;
@@ -27,6 +28,8 @@ use Illuminate\Support\Facades\Log;
  */
 class AgentLoop
 {
+    use ResolvesRedactor;
+
     protected int $inputTokens = 0;
     protected int $outputTokens = 0;
     protected ?Redactor $redactor = null;
@@ -254,31 +257,6 @@ class AgentLoop
             'content' => $content,
             'metadata' => $metadata,
         ]);
-    }
-
-    /**
-     * Whether this conversation gets redacted.
-     *
-     * Two switches, and both have to say yes: the app-wide option, and the per-session
-     * flag on top of it. The global one is off by default because turning it on changes
-     * what the model sees; the per-session one is on by default, so a product that
-     * redacts does it unless this user asked otherwise in this conversation.
-     */
-    protected function redactorFor(ChatSession $session): ?Redactor
-    {
-        if (! config('laragents.privacy.enabled', false)) {
-            return null;
-        }
-
-        if ($session->anonymize_pii === false) {
-            return null;
-        }
-
-        // From the container, so an app with its own idea of what personal data is binds
-        // its own and this never reaches laranon. The shipped one throws when laranon is
-        // missing, on purpose: an app that believes it anonymises and does not is worse
-        // than one that never claimed to.
-        return app(Redactor::class);
     }
 
     /** Messages on their way to the provider. Override to add your own transform. */

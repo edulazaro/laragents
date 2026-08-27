@@ -186,4 +186,164 @@ class PrivacyTest extends TestCase
         $this->assertSame('esto es [X]', $sent['messages'][0]['content'], 'it left redacted');
         $this->assertSame('dijiste secreto', $response->content, 'and came back restored');
     }
+
+    public function test_compressing_a_private_conversation_does_not_hand_it_over_whole(): void
+    {
+        // The leak this covers is worse than never redacting: the turns go out tokenised
+        // and then the whole transcript follows the moment the history outgrows its
+        // budget, out of a conversation the user marked private.
+        config([
+            'laragents.privacy.enabled' => true,
+            'laragents.chat.max_history_tokens' => 1,
+            'laragents.chat.recent_messages_min' => 1,
+            'laragents.memory.distil_on_compress' => false,
+        ]);
+
+        $this->fakeAnswer('Resumen: el cliente reclama.');
+
+        $session = $this->newSession();
+
+        foreach (['Mi DNI es 12345678Z.', 'Anotado.', 'Gracias.'] as $i => $content) {
+            ChatMessage::create([
+                'session_id' => $session->id,
+                'role' => $i % 2 === 0 ? 'user' : 'assistant',
+                'content' => $content,
+            ]);
+        }
+
+        $this->app->make(\EduLazaro\Laragents\HistoryCompressor::class)
+            ->buildHistory($session, 'You are an assistant.');
+
+        $sent = json_encode($this->sentBody(), JSON_UNESCAPED_UNICODE);
+
+        $this->assertStringNotContainsString('12345678Z', $sent, 'the ID left with the transcript');
+    }
+
+    public function test_the_stored_summary_is_in_the_clear(): void
+    {
+        // The mapping is a first-seen counter that dies with the call, so a summary saved
+        // with the markers in it could never be read back: next turn's «AP_1» is somebody
+        // else and there is nothing left to undo it with.
+        config([
+            'laragents.privacy.enabled' => true,
+            'laragents.chat.max_history_tokens' => 1,
+            'laragents.chat.recent_messages_min' => 1,
+            'laragents.memory.distil_on_compress' => false,
+        ]);
+
+        $this->fakeAnswer('El cliente con DNI «DNI_1» reclama.');
+
+        $session = $this->newSession();
+
+        foreach (['Mi DNI es 12345678Z.', 'Anotado.', 'Gracias.'] as $i => $content) {
+            ChatMessage::create([
+                'session_id' => $session->id,
+                'role' => $i % 2 === 0 ? 'user' : 'assistant',
+                'content' => $content,
+            ]);
+        }
+
+        $this->app->make(\EduLazaro\Laragents\HistoryCompressor::class)
+            ->buildHistory($session, 'You are an assistant.');
+
+        $summary = (string) $session->fresh()->compressed_summary;
+
+        $this->assertStringContainsString('12345678Z', $summary);
+        $this->assertStringNotContainsString('DNI_1', $summary);
+    }
+
+    public function test_distilling_a_private_conversation_does_not_hand_it_over_whole(): void
+    {
+        // The widest of the three prompts: the new turns, the summary of everything
+        // before them, and every memory already stored, in one call.
+        config(['laragents.privacy.enabled' => true, 'laragents.memory.min_messages' => 1]);
+
+        $this->fakeAnswer('{"everyone":[],"actor":[]}');
+
+        $session = $this->newSession();
+
+        ChatMessage::create([
+            'session_id' => $session->id,
+            'role' => 'user',
+            'content' => 'Mi DNI es 12345678Z.',
+        ]);
+
+        $this->app->make(\EduLazaro\Laragents\MemoryDistiller::class)->distil($session);
+
+        $sent = json_encode($this->sentBody(), JSON_UNESCAPED_UNICODE);
+
+        $this->assertStringNotContainsString('12345678Z', $sent, 'the ID left with the transcript');
+    }
+
+    public function test_a_stored_memory_is_in_the_clear(): void
+    {
+        // Saved with the marker in it, a memory could never be read back: the mapping is
+        // a first-seen counter that died with the call that made it.
+        config(['laragents.privacy.enabled' => true, 'laragents.memory.min_messages' => 1]);
+
+        $this->fakeAnswer('{"everyone":[{"memorable":"firm","content":"Su DNI es «DNI_1».","category":"fact"}],"actor":[]}');
+
+        $session = $this->newSession();
+
+        ChatMessage::create([
+            'session_id' => $session->id,
+            'role' => 'user',
+            'content' => 'Mi DNI es 12345678Z.',
+        ]);
+
+        $this->app->make(\EduLazaro\Laragents\MemoryDistiller::class)->distil($session);
+
+        $memory = \EduLazaro\Laragents\Models\Memory::first();
+
+        $this->assertNotNull($memory, 'nothing was written');
+        $this->assertStringContainsString('12345678Z', $memory->content);
+        $this->assertStringNotContainsString('DNI_1', $memory->content);
+    }
+
+    public function test_a_quote_in_a_restored_value_does_not_destroy_the_batch(): void
+    {
+        // Why the restore happens after json_decode and not before. Nothing laranon
+        // detects can contain a quote (surnames, ids, IBANs, phones, emails), so this is
+        // unreachable with the shipped redactor. It is reachable with yours: the contract
+        // is public, and an app that pins its own entities can tokenise a company name.
+        // Put that back while the reply is still a JSON document and the document breaks,
+        // taking the whole window's memories with it and reporting nothing.
+        config(['laragents.privacy.enabled' => true, 'laragents.memory.min_messages' => 1]);
+
+        $this->app->bind(RedactorContract::class, fn () => new class implements RedactorContract {
+            public function beginTurn(): void {}
+
+            public function outbound(array $messages): array
+            {
+                return $messages;
+            }
+
+            public function inbound(string $text): string
+            {
+                return str_replace('«CO_1»', 'Casa "El Pino" S.L.', $text);
+            }
+
+            public function inboundToolCalls(array $toolCalls): array
+            {
+                return $toolCalls;
+            }
+        });
+
+        $this->fakeAnswer('{"everyone":[{"memorable":"firm","content":"Trabaja en «CO_1».","category":"fact"}],"actor":[]}');
+
+        $session = $this->newSession();
+
+        ChatMessage::create([
+            'session_id' => $session->id,
+            'role' => 'user',
+            'content' => 'Trabajo en Casa "El Pino" S.L.',
+        ]);
+
+        $this->app->make(\EduLazaro\Laragents\MemoryDistiller::class)->distil($session);
+
+        $memory = \EduLazaro\Laragents\Models\Memory::first();
+
+        $this->assertNotNull($memory, 'the batch was lost decoding the reply');
+        $this->assertSame('Trabaja en Casa "El Pino" S.L..', $memory->content);
+    }
 }
