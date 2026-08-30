@@ -41,6 +41,35 @@ final class ModelCapabilities
     private const NO_TEMPERATURE = ['claude-opus-4-8'];
 
     /**
+     * Families that refuse function tools on /v1/chat/completions unless reasoning is
+     * explicitly OFF. Omitting the parameter is not the same as sending 'none': the model
+     * applies its own default and the call is rejected.
+     */
+    private const TOOLS_NEED_REASONING_OFF = ['gpt-5.6'];
+
+    /**
+     * Whether tools on this model require `reasoning_effort: 'none'`.
+     *
+     * Measured against the API, not inferred: gpt-5.6-terra and gpt-5.6-luna both answer
+     * 400 with "Function tools with reasoning_effort are not supported ... in
+     * /v1/chat/completions" when tools are sent and the parameter is absent, and 200 when
+     * it is present and set to 'none'. Neither rejects tools on its own.
+     *
+     * @param string $model
+     * @return bool
+     */
+    public static function toolsRequireReasoningOff(string $model): bool
+    {
+        foreach (self::TOOLS_NEED_REASONING_OFF as $family) {
+            if (str_starts_with($model, $family)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Is reasoning.
      *
      * @param string $model

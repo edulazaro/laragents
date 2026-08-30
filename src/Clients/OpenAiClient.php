@@ -118,6 +118,13 @@ class OpenAiClient implements ChatClient
         if ($tools) {
             $body['tools'] = $tools;
 
+            // Sent explicitly, because omitting it is not the same as switching it off:
+            // the model falls back to its own default and rejects the call. See
+            // ModelCapabilities::toolsRequireReasoningOff.
+            if (ModelCapabilities::toolsRequireReasoningOff($model)) {
+                $body['reasoning_effort'] = 'none';
+            }
+
             if ($toolChoice) {
                 $body['tool_choice'] = $toolChoice;
             }
