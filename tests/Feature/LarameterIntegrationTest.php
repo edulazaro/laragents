@@ -44,11 +44,17 @@ class LarameterIntegrationTest extends TestCase
         $migration->up();
     }
 
-    private function fakeAnswer(int $in = 100_000, int $out = 20_000): void
+    private function fakeAnswer(int $in = 100_000, int $out = 20_000, int $cached = 0): void
     {
+        $usage = ['prompt_tokens' => $in, 'completion_tokens' => $out];
+
+        if ($cached > 0) {
+            $usage['prompt_tokens_details'] = ['cached_tokens' => $cached];
+        }
+
         Http::fake(['api.openai.com/*' => Http::response([
             'choices' => [['message' => ['content' => 'ok'], 'finish_reason' => 'stop']],
-            'usage' => ['prompt_tokens' => $in, 'completion_tokens' => $out],
+            'usage' => $usage,
         ], 200)]);
     }
 
@@ -81,6 +87,35 @@ class LarameterIntegrationTest extends TestCase
         // 25,000 credits per million in and 100,000 per million out.
         $this->assertSame(125000, $record->credits);
         $this->assertSame('chat', $record->metadata['operation'], 'the feature, beside the model');
+    }
+
+    /**
+     * Y el descuento por caché llega hasta los créditos, no solo hasta la respuesta.
+     *
+     * Es el tramo que de verdad cuesta dinero: entre el `Response` y la fila de uso hay
+     * un recorder de por medio, y comprobar solo el primero deja sin probar justo la
+     * parte que se factura.
+     */
+    public function test_a_cached_prefix_reaches_the_credit_line(): void
+    {
+        config()->set('laragents.openai.cache_read_weight', 0.5);
+
+        // Un millón de entrada con 800.000 reutilizados: 200.000 enteros más 800.000 a
+        // mitad son 600.000 efectivos, y a 25.000 créditos el millón salen 15.000.
+        $this->fakeAnswer(in: 1_000_000, out: 0, cached: 800_000);
+        $org = Owner::create();
+
+        $this->app->make(OpenAiClient::class)->chat(
+            messages: [['role' => 'user', 'content' => 'x']],
+            model: 'gpt-4o',
+            owner: $org,
+            operation: 'chat',
+        );
+
+        $record = UsageRecord::first();
+
+        $this->assertSame(600_000, $record->quantity_in, 'se mete la entrada efectiva, no la bruta');
+        $this->assertSame(15_000, $record->credits);
     }
 
     public function test_once_the_plan_runs_out_the_next_call_never_leaves(): void
