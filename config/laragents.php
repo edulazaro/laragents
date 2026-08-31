@@ -88,6 +88,18 @@ return [
         'speech_model' => 'tts-1',
         'voice' => 'alloy',
         'image_model' => 'gpt-image-1',
+
+        // What a cached input token costs, as a share of an uncached one.
+        //
+        // OpenAI caches long prefixes by itself and bills the reused part at a discount.
+        // This is what turns that discount into your accounting, so a system prompt that
+        // never changes stops being charged in full on every call.
+        //
+        // Not a fixed 0.1 like Anthropic's because OpenAI's share differs by model and
+        // has changed more than once. Set it to what your model's page says. The default
+        // errs high: charging a little above the invoice is a rounding error, charging
+        // below it is a loss you only find on the bill.
+        'cache_read_weight' => 0.5,
     ],
 
     /*

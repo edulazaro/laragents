@@ -16,6 +16,26 @@ use Illuminate\Support\Facades\Log;
 class OpenAiClient implements ChatClient
 {
     /**
+     * What a cached input token costs, as a share of an uncached one.
+     *
+     * Configurable rather than fixed, because unlike Anthropic's flat 0.1 OpenAI's
+     * discount is not the same across the catalogue and has moved more than once. The
+     * default errs HIGH on purpose: overstating the price of a cache read charges the
+     * caller a little more than the invoice, while understating it charges less than you
+     * pay, and only the second one loses money in silence.
+     *
+     * @return float
+     */
+    protected function cacheReadWeight(): float
+    {
+        $weight = (float) config('laragents.openai.cache_read_weight', 0.5);
+
+        // A weight outside 0..1 is a typo, and either end of it is expensive: above one
+        // the cache costs more than a miss, below zero it pays the caller to use it.
+        return max(0.0, min(1.0, $weight));
+    }
+
+    /**
      * @param UsageRecorder $usage
      * @param ?string $apiKey
      * @param string $baseUrl
@@ -184,9 +204,35 @@ class OpenAiClient implements ChatClient
             ]);
         }
 
+        // What the prefix cost, now that the provider charged less for it.
+        //
+        // OpenAI caches automatically: any prefix over about a thousand tokens is reused
+        // on the next call and billed at a discount, with nothing to send and nothing to
+        // opt into. It reports the reused count in `prompt_tokens_details.cached_tokens`,
+        // already included in `prompt_tokens`.
+        //
+        // Recording the raw count instead is how an app ends up metering the discount
+        // away: the provider bills the cheap number, the caller is charged the expensive
+        // one, and the gap is invisible to both. It shows up as an allowance that runs
+        // out faster than the invoice says it should.
+        //
+        // No cache-write premium here, unlike Anthropic: OpenAI does not charge for
+        // filling the cache, so `cacheCreationTokens` stays zero rather than guessing.
+        $promptTokens = (int) ($usage['prompt_tokens'] ?? 0);
+        $cacheRead = (int) ($usage['prompt_tokens_details']['cached_tokens'] ?? 0);
+
+        // Clamped because the two numbers come from the provider and only one of them is
+        // documented as a subset of the other. A cached count above the total would make
+        // the effective input negative and quietly credit the account.
+        $cacheRead = max(0, min($cacheRead, $promptTokens));
+
+        $effectiveInput = (int) round(
+            ($promptTokens - $cacheRead) + $cacheRead * $this->cacheReadWeight()
+        );
+
         $result = new Response(
             content: $content,
-            inputTokens: $usage['prompt_tokens'] ?? 0,
+            inputTokens: $effectiveInput,
             outputTokens: $usage['completion_tokens'] ?? 0,
             model: $model,
             toolCalls: $message['tool_calls'] ?? [],
@@ -198,6 +244,7 @@ class OpenAiClient implements ChatClient
             // tokens are already counted in completion_tokens.
             reasoning: (string) ($message['reasoning'] ?? ''),
             citations: $citations,
+            cacheReadTokens: $cacheRead,
         );
 
         if ($owner) {

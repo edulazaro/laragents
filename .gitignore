@@ -2,3 +2,6 @@
 composer.lock
 .phpunit.cache/
 .phpunit.result.cache
+
+# Notas de trabajo, no parte del paquete.
+CLAUDE.md

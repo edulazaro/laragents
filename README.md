@@ -391,6 +391,32 @@ it leaves once the plan runs out.
 it null and nothing is recorded and nothing is blocked, which is what you want while you
 are still wiring it up.
 
+### What a cached prefix costs
+
+Both providers reuse a long, unchanged prefix across calls and bill the reused part at a
+discount. A system prompt and a tool list that never change are the whole prefix of every
+call you make, so on a chat that is most of the input.
+
+What gets recorded is what the call **actually cost**, not the raw prompt count. Recording
+the raw number is how the discount goes missing: the provider bills the cheap figure, the
+caller is charged the expensive one, and the only visible symptom is an allowance that
+runs out faster than the invoice says it should.
+
+**Anthropic** has to be asked. The client marks the system prompt and the last tool with
+`cache_control`, then weights what comes back: a write at 1.25 and a read at 0.1, which
+are Anthropic's published multipliers.
+
+**OpenAI** does it by itself. Anything over roughly a thousand tokens is cached with
+nothing to send and nothing to opt into, and the reused count arrives in
+`prompt_tokens_details.cached_tokens`. The share is not fixed across the catalogue, so it
+is yours to set:
+
+    'openai' => ['cache_read_weight' => 0.5],
+
+The default errs high on purpose. Overstating the price of a cache read charges a rounding
+error above the invoice; understating it charges below what you pay, and that one only
+turns up on the bill, months later.
+
 ## Wiring your accounting
 
 Implement `Contracts\UsageRecorder` over whatever tables you already have and point the
