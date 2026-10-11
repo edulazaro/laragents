@@ -482,6 +482,45 @@ complained. Otherwise a schema written against Claude works until the day somebo
 switches provider, and then it breaks in production with a 400. Pass `strict: false`
 in the schema to call without any of this.
 
+## Picking a provider
+
+Resolving the contract gives you whatever is bound, which is OpenAI unless you said
+otherwise. Which provider a given conversation uses is a runtime decision, so ask
+for one by name:
+
+```php
+Laragents::chat('anthropic')->chat($messages, 'claude-opus-5-5', owner: $firm);
+
+if (! Laragents::hasKey('anthropic')) {
+    // fall back, or tell them to configure it
+}
+
+Laragents::available();   // ['openai', 'anthropic'], minus any without a key
+```
+
+There is no per-provider default model on purpose: `$model` is required on `chat()`
+for the reason the contract spells out, and a default is something you fall into
+without deciding.
+
+## Testing against it
+
+`FakeChatClient` puts itself in the container, answers what you queued and keeps
+every call, so nothing reaches a provider and nothing is billed:
+
+```php
+$chat = FakeChatClient::bind()->reply(['category' => 'invoice']);
+
+$this->action->run($document);
+
+$this->assertSame('claude-opus-5-5', $chat->lastCall()['model']);
+$this->assertStringContainsString('Acme', $chat->lastPrompt());
+```
+
+`reply()` queues one answer per call and `always()` answers everything; a string is
+the content, an array is encoded as JSON, a `Response` is used as given. It checks
+the schema the same way the real clients do, so a test cannot pass on a schema the
+provider would reject.
+
 ## Configuration
 
 `config/laragents.php` holds literals. `env()` is called in that file and nowhere else in

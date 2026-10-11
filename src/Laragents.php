@@ -2,6 +2,8 @@
 
 namespace EduLazaro\Laragents;
 
+use EduLazaro\Laragents\Clients\AnthropicClient;
+use EduLazaro\Laragents\Clients\OpenAiClient;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\Contracts\Redactor;
 use EduLazaro\Laragents\Contracts\UsageRecorder;
@@ -28,6 +30,59 @@ use EduLazaro\Laragents\Tools\ToolRegistry;
  */
 class Laragents
 {
+    /** The providers this package talks to, by the name you would write in config. */
+    public const PROVIDERS = [
+        'openai' => OpenAiClient::class,
+        'anthropic' => AnthropicClient::class,
+    ];
+
+    /**
+     * The client for one provider, or the bound one when asked for none.
+     *
+     * Which provider a conversation uses is a runtime decision, so the container
+     * binding cannot answer it. Before this, every app wrote the same map of provider
+     * name to client class to config key, which is this package's knowledge, not the
+     * app's.
+     *
+     * No default model comes with it, and that is deliberate: `$model` is required on
+     * `chat()` for a reason the contract spells out, and a per-provider default would
+     * put back exactly the thing it was removed to avoid.
+     */
+    public static function chat(?string $provider = null): ChatClient
+    {
+        if ($provider === null) {
+            return app(ChatClient::class);
+        }
+
+        $client = self::PROVIDERS[strtolower($provider)] ?? null;
+
+        if ($client === null) {
+            throw new \InvalidArgumentException(
+                "Unknown provider [{$provider}]. Known: " . implode(', ', array_keys(self::PROVIDERS)) . '.'
+            );
+        }
+
+        return app($client);
+    }
+
+    /** Whether a provider has a key configured, which is what decides if it can be used. */
+    public static function hasKey(string $provider): bool
+    {
+        $provider = strtolower($provider);
+
+        if (! isset(self::PROVIDERS[$provider])) {
+            return false;
+        }
+
+        return trim((string) config("laragents.{$provider}.api_key")) !== '';
+    }
+
+    /** The providers that have a key, in the order they are declared. */
+    public static function available(): array
+    {
+        return array_values(array_filter(array_keys(self::PROVIDERS), fn (string $p) => self::hasKey($p)));
+    }
+
     /**
      * Who keeps personal data out of what reaches the provider.
      *
