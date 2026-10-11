@@ -2,6 +2,7 @@
 
 namespace EduLazaro\Laragents\Clients;
 
+use EduLazaro\Laragents\Support\StrictSchema;
 use EduLazaro\Laragents\Capabilities\Translator;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\ModelCapabilities;
@@ -120,11 +121,17 @@ class OpenAiClient implements ChatClient
         // it. `strict` also makes an enum in the schema binding, which is what you
         // actually wanted every time you set a low temperature on a classifier.
         if ($schema) {
+            $strict = $schema['strict'] ?? true;
+
+            if ($strict) {
+                StrictSchema::assert($schema['schema'] ?? $schema);
+            }
+
             $body['response_format'] = [
                 'type' => 'json_schema',
                 'json_schema' => [
                     'name' => $schema['name'] ?? 'response',
-                    'strict' => $schema['strict'] ?? true,
+                    'strict' => $strict,
                     'schema' => $schema['schema'] ?? $schema,
                 ],
             ];

@@ -2,6 +2,7 @@
 
 namespace EduLazaro\Laragents\Clients;
 
+use EduLazaro\Laragents\Support\StrictSchema;
 use EduLazaro\Laragents\Capabilities\Translator;
 use EduLazaro\Laragents\Contracts\ChatClient;
 use EduLazaro\Laragents\ModelCapabilities;
@@ -125,6 +126,13 @@ class AnthropicClient implements ChatClient
         // caller asked for an answer in a shape, not for a conversation.
         if ($schema) {
             $name = $schema['name'] ?? 'response';
+
+            // Esta API no tiene modo estricto y aceptaria el esquema como venga. Se
+            // comprueba igual, para que el mismo esquema pase o falle en los dos
+            // proveedores y no se descubra al cambiar de uno a otro.
+            if ($schema['strict'] ?? true) {
+                StrictSchema::assert($schema['schema'] ?? $schema);
+            }
 
             $body['tools'] = [[
                 'name' => $name,

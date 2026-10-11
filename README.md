@@ -444,6 +444,44 @@ Scheduling is yours. The package holds the agent, the run and the log; when to f
 depends on your queue and your clock, and a package that assumes either is a package that
 breaks on someone else's setup.
 
+## Answers in a shape
+
+Pass a `schema` and the answer comes back in that shape, guaranteed by the provider
+rather than asked for in the prompt. OpenAI does it with `response_format`; Anthropic
+has no such thing, so it declares one tool whose input schema IS the shape and leaves
+the model no choice but to call it.
+
+Strict mode is on unless you say otherwise, and it has two requirements that are easy
+to miss: every object needs `additionalProperties: false`, and **it has no optional
+properties** — every property goes in `required`, and the ones that may be absent are
+made nullable instead.
+
+```php
+schema: [
+    'name' => 'classification',
+    'schema' => [
+        'type' => 'object',
+        'properties' => [
+            'category' => ['type' => 'string'],
+            'note'     => ['type' => ['string', 'null']],
+        ],
+        'required' => ['category', 'note'],
+        'additionalProperties' => false,
+    ],
+]
+```
+
+A schema that does not meet them is refused before the call, naming the exact path:
+
+```
+Strict schema at `schema.properties.findings.items` leaves out of `required`: score.
+```
+
+Both clients check the same thing, even though only one of the two APIs would have
+complained. Otherwise a schema written against Claude works until the day somebody
+switches provider, and then it breaks in production with a 400. Pass `strict: false`
+in the schema to call without any of this.
+
 ## Configuration
 
 `config/laragents.php` holds literals. `env()` is called in that file and nowhere else in
